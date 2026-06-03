@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import type { TableModel, BorderStyle } from './lib/table/types'
 import { parseInput } from './lib/table/parser'
 import { PreviewPanel } from './components/PreviewPanel'
@@ -6,7 +6,7 @@ import { latexGenerator } from './lib/table/generators/latexGenerator'
 import { FormattingBar } from './components/FormattingBar'
 import { type FormattingOptions, DEFAULT_OPTIONS } from './lib/table/formatters/options'
 import { EXAMPLES } from './lib/example/examples'
-import { InputPanel } from './components/InputPanel'
+import { InputPanel, type InputMode } from './components/InputPanel'
 import {
   addRowAbove,
   addRowBelow,
@@ -97,17 +97,9 @@ function App() {
   const [anchorCell, setAnchorCell] = useState<CellAnchor | null>(null)
   const [editMode, setEditMode] = useState<EditMode>('output')
   const [sources, setSources] = useState<TableSource[]>([])
-  const [inputCollapsed, setInputCollapsed] = useState(false)
-  const hasAutoCollapsed = useRef(false)
-
-  // Auto-collapse Input on first Edit mode entry only
-  useEffect(() => {
-    if (viewMode === 'edit' && !hasAutoCollapsed.current) {
-      setInputCollapsed(true)
-      hasAutoCollapsed.current = true
-    }
-  }, [viewMode])
+  const [inputMode, setInputMode] = useState<InputMode>('paste')
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
+
 
   const selectedCells = useMemo(
     () => model.rows.flatMap((row) => row.cells.filter((c) => selectedCellIds.has(c.id))),
@@ -139,6 +131,30 @@ function App() {
   function handleShowAllColumns() {
     setModel((prev) => showAllColumns(prev))
   }
+
+  // Shared props objects (defined after all handlers)
+  const previewProps = {
+    model, options, viewMode, onViewModeChange: setViewMode,
+    editMode, onEditModeChange: setEditMode,
+    onCellChange: updateCell, onCellSelect: handleCellSelect,
+    onStyleChange: handleStyleChange, onClearFormatting: handleClearFormatting,
+    selectedCellIds, selectedCells, selectedColIndices,
+    hiddenColumnIndices, hiddenColumnNames,
+    onHideColumns: handleHideColumns, onShowColumn: handleShowColumn,
+    onShowAllColumns: handleShowAllColumns,
+    onAddRowAbove: handleAddRowAbove, onAddRowBelow: handleAddRowBelow,
+    onDeleteRow: handleDeleteRow, onAddColumnLeft: handleAddColumnLeft,
+    onAddColumnRight: handleAddColumnRight, onDeleteColumn: handleDeleteColumn,
+    onRowBorderChange: handleRowBorderChange,
+  } as const
+
+  const inputPanelProps = {
+    onParse: handleParse, onMainFileUpload: handleMainFileUpload,
+    onCreateTable: handleCreateTable, sources,
+    onAddSourceFiles: handleAddSourceFiles, onAppendRows: handleAppendRows,
+    onAppendColumns: handleAppendColumns, onReplaceWith: handleReplaceWith,
+    onRemoveSource: handleRemoveSource,
+  } as const
 
   function handleCellSelect(cellId: string, rowIdx: number, colIdx: number, isShift: boolean) {
     if (!isShift || !anchorCell) {
@@ -338,106 +354,46 @@ function App() {
           ))}
         </div>
 
-        {/* Formatting controls — above panels on desktop */}
+        {/* Formatting controls */}
         <FormattingBar options={options} onChange={setOptions} />
 
-        {/* Desktop layout: Input (collapsible) + Preview + LaTeX */}
-        <div className="hidden md:flex md:flex-col gap-5 mt-5">
-          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
-            <div style={inputCollapsed ? { flexShrink: 0 } : { flex: 1, minWidth: 0 }}>
-              <InputPanel
-                collapsed={inputCollapsed}
-                onToggleCollapse={() => setInputCollapsed((v) => !v)}
-                onParse={handleParse}
-                onMainFileUpload={handleMainFileUpload}
-                onCreateTable={handleCreateTable}
-                sources={sources}
-                onAddSourceFiles={handleAddSourceFiles}
-                onAppendRows={handleAppendRows}
-                onAppendColumns={handleAppendColumns}
-                onReplaceWith={handleReplaceWith}
-                onRemoveSource={handleRemoveSource}
-              />
+        {/* Mode selector — Citation⇄BibTeX style */}
+        <ModeSelector active={inputMode} onChange={setInputMode} />
+
+        {/* Desktop layout: changes based on inputMode */}
+        <div className="hidden md:flex md:flex-col gap-5">
+          {inputMode === 'paste' ? (
+            /* Paste: side-by-side Input + Preview */
+            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <InputPanel mode="paste" {...inputPanelProps} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <PreviewPanel {...previewProps} />
+              </div>
+
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-            <PreviewPanel
-              model={model}
-              options={options}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              editMode={editMode}
-              onEditModeChange={setEditMode}
-              onCellChange={updateCell}
-              onCellSelect={handleCellSelect}
-              onStyleChange={handleStyleChange}
-              onClearFormatting={handleClearFormatting}
-              selectedCellIds={selectedCellIds}
-              selectedCells={selectedCells}
-              selectedColIndices={selectedColIndices}
-              hiddenColumnIndices={hiddenColumnIndices}
-              hiddenColumnNames={hiddenColumnNames}
-              onHideColumns={handleHideColumns}
-              onShowColumn={handleShowColumn}
-              onShowAllColumns={handleShowAllColumns}
-              onAddRowAbove={handleAddRowAbove}
-              onAddRowBelow={handleAddRowBelow}
-              onDeleteRow={handleDeleteRow}
-              onAddColumnLeft={handleAddColumnLeft}
-              onAddColumnRight={handleAddColumnRight}
-              onDeleteColumn={handleDeleteColumn}
-              onRowBorderChange={handleRowBorderChange}
-            />
-            </div>{/* /PreviewPanel wrapper */}
-          </div>{/* /flex row */}
+          ) : (
+            /* Upload / Create / Merge: full-width mode panel + Preview below */
+            <>
+              <InputPanel mode={inputMode} {...inputPanelProps} />
+              <PreviewPanel {...previewProps} />
+            </>
+          )}
           <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />
         </div>
 
         {/* Mobile: single panel by tab */}
         <div className="md:hidden mt-4">
           {activeTab === 'input' && (
-            <InputPanel
-              collapsed={false}
-              onToggleCollapse={() => {}}
-              onParse={handleParse}
-              onMainFileUpload={handleMainFileUpload}
-              onCreateTable={handleCreateTable}
-              sources={sources}
-              onAddSourceFiles={handleAddSourceFiles}
-              onAppendRows={handleAppendRows}
-              onAppendColumns={handleAppendColumns}
-              onReplaceWith={handleReplaceWith}
-              onRemoveSource={handleRemoveSource}
-            />
+            <div>
+              <ModeSelector active={inputMode} onChange={setInputMode} />
+              <div className="mt-4">
+                <InputPanel mode={inputMode} {...inputPanelProps} />
+              </div>
+            </div>
           )}
-          {activeTab === 'preview' && (
-            <PreviewPanel
-              model={model}
-              options={options}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              editMode={editMode}
-              onEditModeChange={setEditMode}
-              onCellChange={updateCell}
-              onCellSelect={handleCellSelect}
-              onStyleChange={handleStyleChange}
-              onClearFormatting={handleClearFormatting}
-              selectedCellIds={selectedCellIds}
-              selectedCells={selectedCells}
-              selectedColIndices={selectedColIndices}
-              hiddenColumnIndices={hiddenColumnIndices}
-              hiddenColumnNames={hiddenColumnNames}
-              onHideColumns={handleHideColumns}
-              onShowColumn={handleShowColumn}
-              onShowAllColumns={handleShowAllColumns}
-              onAddRowAbove={handleAddRowAbove}
-              onAddRowBelow={handleAddRowBelow}
-              onDeleteRow={handleDeleteRow}
-              onAddColumnLeft={handleAddColumnLeft}
-              onAddColumnRight={handleAddColumnRight}
-              onDeleteColumn={handleDeleteColumn}
-              onRowBorderChange={handleRowBorderChange}
-            />
-          )}
+          {activeTab === 'preview' && <PreviewPanel {...previewProps} />}
           {activeTab === 'latex' && <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />}
         </div>
       </main>
@@ -457,6 +413,60 @@ function App() {
   )
 }
 
+
+const MODE_OPTIONS: { value: InputMode; icon: string; label: string; desc: string }[] = [
+  { value: 'paste', icon: '✏️', label: 'Paste', desc: 'テキスト貼り付け' },
+  { value: 'upload', icon: '📂', label: 'Upload', desc: 'ファイル読み込み' },
+  { value: 'create', icon: '🆕', label: 'Create', desc: '空テーブル作成' },
+  { value: 'merge', icon: '🔗', label: 'Merge', desc: 'ソース統合' },
+]
+
+function ModeSelector({ active, onChange }: { active: InputMode; onChange: (m: InputMode) => void }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: '4px',
+        padding: '4px',
+        background: 'var(--bg)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--r)',
+        boxShadow: 'var(--shadow-sm)',
+        marginBottom: '1.25rem',
+      }}
+    >
+      {MODE_OPTIONS.map(({ value, icon, label, desc }) => (
+        <button
+          key={value}
+          onClick={() => onChange(value)}
+          style={{
+            flex: 1,
+            padding: '0.5rem 0.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            border: 'none',
+            borderRadius: 'var(--rs)',
+            cursor: 'pointer',
+            transition: 'all .18s',
+            background: active === value ? 'var(--card)' : 'transparent',
+            color: active === value ? 'var(--accent)' : 'var(--text-sub)',
+            boxShadow: active === value ? 'var(--shadow-sm)' : 'none',
+          }}
+          onMouseEnter={(e) => { if (active !== value) e.currentTarget.style.background = 'rgba(255,255,255,0.5)' }}
+          onMouseLeave={(e) => { if (active !== value) e.currentTarget.style.background = 'transparent' }}
+        >
+          <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{icon}</span>
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.2 }}>{label}</span>
+          <span style={{ fontSize: '0.65rem', color: active === value ? 'var(--accent)' : 'var(--text-light)', lineHeight: 1.2 }}>
+            {desc}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 function LaTeXPanel({
   latex,

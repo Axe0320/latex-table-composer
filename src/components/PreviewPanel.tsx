@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { TableModel, TableRow, BorderStyle } from '../lib/table/types'
 import type { FormattingOptions } from '../lib/table/formatters/options'
 import { formatValue } from '../lib/table/formatters/shared/formatValue'
@@ -21,6 +21,8 @@ type Props = EditHandlers & {
   viewMode: 'preview' | 'edit'
   onViewModeChange: (mode: 'preview' | 'edit') => void
 }
+
+const MIN_ZOOM = 0.45
 
 export function PreviewPanel({
   model,
@@ -51,29 +53,39 @@ export function PreviewPanel({
     prevRowCountRef.current = model.rows.length
   }, [model.rows.length, viewMode])
 
-  // Scroll overflow container to right end when columns increase in Edit mode
-  const overflowRef = useRef<HTMLDivElement>(null)
-  const prevColCountRef = useRef(visibleColCount)
-  // Track whether table overflows horizontally (for scroll indicator)
-  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false)
+  // Auto-zoom: shrink table to fit container width when columns overflow
+  const tableContainerRef = useRef<HTMLDivElement>(null)
+  const zoomTargetRef = useRef<HTMLDivElement>(null)
+  const tableRef = useRef<HTMLTableElement>(null)
 
   useEffect(() => {
-    if (viewMode === 'edit' && visibleColCount > prevColCountRef.current) {
-      // requestAnimationFrame ensures DOM layout is fully computed before scrolling
+    function applyZoom() {
+      const container = tableContainerRef.current
+      const zoomTarget = zoomTargetRef.current
+      const table = tableRef.current
+      if (!container || !zoomTarget || !table) return
+
+      // Reset zoom to measure natural table width
+      zoomTarget.style.zoom = '1'
+
       requestAnimationFrame(() => {
-        const el = overflowRef.current
-        if (el) el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' })
+        if (!container || !zoomTarget || !table) return
+        const naturalW = table.scrollWidth
+        const containerW = container.clientWidth
+        if (naturalW > containerW && containerW > 0) {
+          const zoom = Math.max(MIN_ZOOM, containerW / naturalW)
+          zoomTarget.style.zoom = String(zoom)
+        } else {
+          zoomTarget.style.zoom = '1'
+        }
       })
     }
-    prevColCountRef.current = visibleColCount
-  }, [visibleColCount, viewMode])
 
-  // Update overflow indicator whenever column count or viewMode changes
-  useEffect(() => {
-    const el = overflowRef.current
-    if (!el) return
-    const check = () => setHasHorizontalOverflow(el.scrollWidth > el.clientWidth)
-    requestAnimationFrame(check)
+    applyZoom()
+
+    const ro = new ResizeObserver(applyZoom)
+    if (tableContainerRef.current) ro.observe(tableContainerRef.current)
+    return () => ro.disconnect()
   }, [visibleColCount, viewMode])
 
   // Check whether a column has any non-empty content
@@ -128,178 +140,166 @@ export function PreviewPanel({
         <div style={{ padding: '1.25rem 1.5rem' }}><EmptyState /></div>
       ) : (
         <div style={{ padding: '0.75rem 1.5rem 1.25rem' }}>
-          {model.title && (
-            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-sub)' }}>
-              {model.title}
-            </p>
-          )}
-
-          <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'stretch' }}>
-            {/* Scroll indicator wrapper */}
-            <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
-              {hasHorizontalOverflow && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    right: 0,
-                    bottom: 0,
-                    width: '40px',
-                    background: 'linear-gradient(to right, transparent, rgba(248,250,252,0.9))',
-                    pointerEvents: 'none',
-                    zIndex: 1,
-                  }}
-                />
+          {/* tableContainerRef measures available width for zoom calculation */}
+          <div ref={tableContainerRef}>
+            {/* zoomTargetRef: zoom CSS property is applied here */}
+            <div ref={zoomTargetRef}>
+              {model.title && (
+                <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-sub)' }}>
+                  {model.title}
+                </p>
               )}
-            <div ref={overflowRef} style={{ overflowX: 'auto', width: '100%' }}>
-            <table
-              style={{
-                borderCollapse: 'collapse',
-                fontSize: '0.875rem',
-                fontFamily: 'inherit',
-                minWidth: '100%',
-                width: 'auto',
-              }}
-            >
-              <tbody>
-                {/* Column controls row — Edit mode only */}
+
+              <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'stretch' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <table
+                    ref={tableRef}
+                    style={{
+                      borderCollapse: 'collapse',
+                      fontSize: '0.875rem',
+                      fontFamily: 'inherit',
+                      minWidth: '100%',
+                      width: 'auto',
+                    }}
+                  >
+                    <tbody>
+                      {/* Column controls row — Edit mode only */}
+                      {viewMode === 'edit' && (
+                        <tr>
+                          <td style={{ width: '3.5rem' }} />
+                          {Array.from({ length: visibleColCount }, (_, colIdx) => (
+                            <td key={colIdx} style={{ textAlign: 'center', padding: '2px 4px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: '2px' }}>
+                                <EBtn
+                                  title="左に列を追加"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => onAddColumnLeft(colIdx)}
+                                >
+                                  ←＋
+                                </EBtn>
+                                <EBtn
+                                  title="列を削除"
+                                  danger
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    const hasContent = colHasContent(colIdx)
+                                    if (!hasContent || window.confirm('入力内容のある列を削除しますか？')) {
+                                      onDeleteColumn(colIdx)
+                                    }
+                                  }}
+                                >
+                                  ✕
+                                </EBtn>
+                                <EBtn
+                                  title="右に列を追加"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => onAddColumnRight(colIdx)}
+                                >
+                                  ＋→
+                                </EBtn>
+                              </div>
+                            </td>
+                          ))}
+                          <td style={{ width: '2px' }} />
+                        </tr>
+                      )}
+
+                      {/* Data rows */}
+                      {visibleRows.map((row, rowIdx) => (
+                        <DataRow
+                          key={row.id}
+                          row={row}
+                          isFirst={rowIdx === 0}
+                          isLast={rowIdx === visibleRows.length - 1}
+                          viewMode={viewMode}
+                          options={options}
+                          onCellChange={onCellChange}
+                          onAddRowAbove={() => onAddRowAbove(row.id)}
+                          onAddRowBelow={() => onAddRowBelow(row.id)}
+                          onDeleteRow={() => onDeleteRow(row.id)}
+                          onRowBorderChange={(border) => onRowBorderChange(row.id, border)}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Right-side add-column button — Edit mode only */}
                 {viewMode === 'edit' && (
-                  <tr>
-                    {/* Spacer for row controls column */}
-                    <td style={{ width: '3.5rem' }} />
-                    {Array.from({ length: visibleColCount }, (_, colIdx) => (
-                      <td key={colIdx} style={{ textAlign: 'center', padding: '2px 4px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '2px' }}>
-                          <EBtn
-                            title="左に列を追加"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => onAddColumnLeft(colIdx)}
-                          >
-                            ←＋
-                          </EBtn>
-                          <EBtn
-                            title="列を削除"
-                            danger
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => {
-                              const hasContent = colHasContent(colIdx)
-                              if (!hasContent || window.confirm('入力内容のある列を削除しますか？')) {
-                                onDeleteColumn(colIdx)
-                              }
-                            }}
-                          >
-                            ✕
-                          </EBtn>
-                          <EBtn
-                            title="右に列を追加"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => onAddColumnRight(colIdx)}
-                          >
-                            ＋→
-                          </EBtn>
-                        </div>
-                      </td>
-                    ))}
-                    {/* Spacer — right-side add-column button handles end-of-table insertion */}
-                    <td style={{ width: '2px' }} />
-                  </tr>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => onAddColumnRight(visibleColCount - 1)}
+                    title="列を追加"
+                    style={{
+                      width: '28px',
+                      flexShrink: 0,
+                      border: '1.5px dashed var(--border)',
+                      borderRadius: 'var(--rs)',
+                      background: 'transparent',
+                      color: 'var(--text-light)',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all .15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--accent)'
+                      e.currentTarget.style.color = 'var(--accent)'
+                      e.currentTarget.style.background = 'var(--accent-light)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)'
+                      e.currentTarget.style.color = 'var(--text-light)'
+                      e.currentTarget.style.background = 'transparent'
+                    }}
+                  >
+                    ＋
+                  </button>
                 )}
+              </div>
 
-                {/* Data rows */}
-                {visibleRows.map((row, rowIdx) => (
-                  <DataRow
-                    key={row.id}
-                    row={row}
-                    isFirst={rowIdx === 0}
-                    isLast={rowIdx === visibleRows.length - 1}
-                    viewMode={viewMode}
-                    options={options}
-                    onCellChange={onCellChange}
-                    onAddRowAbove={() => onAddRowAbove(row.id)}
-                    onAddRowBelow={() => onAddRowBelow(row.id)}
-                    onDeleteRow={() => onDeleteRow(row.id)}
-                    onRowBorderChange={(border) => onRowBorderChange(row.id, border)}
-                  />
-                ))}
-              </tbody>
-            </table>
-            </div>{/* /overflowX */}
-            </div>{/* /scroll indicator wrapper */}
-
-            {/* Right-side add-column button — Edit mode only */}
-            {viewMode === 'edit' && (
-              <button
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => onAddColumnRight(visibleColCount - 1)}
-                title="列を追加"
-                style={{
-                  width: '28px',
-                  flexShrink: 0,
-                  border: '1.5px dashed var(--border)',
-                  borderRadius: 'var(--rs)',
-                  background: 'transparent',
-                  color: 'var(--text-light)',
-                  cursor: 'pointer',
-                  fontSize: '1rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all .15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--accent)'
-                  e.currentTarget.style.color = 'var(--accent)'
-                  e.currentTarget.style.background = 'var(--accent-light)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--border)'
-                  e.currentTarget.style.color = 'var(--text-light)'
-                  e.currentTarget.style.background = 'transparent'
-                }}
-              >
-                ＋
-              </button>
-            )}
-          </div>{/* /flex row */}
-
-          {/* Persistent add-row button — Edit mode only */}
-          {viewMode === 'edit' && (
-            <button
-              ref={addRowBtnRef}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onAddRowBelow(lastRowId)}
-              style={{
-                width: '100%',
-                marginTop: '0.375rem',
-                height: '28px',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px',
-                border: '1.5px dashed var(--border)',
-                borderRadius: 'var(--rs)',
-                background: 'transparent',
-                color: 'var(--text-light)',
-                cursor: 'pointer',
-                transition: 'all .15s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--accent)'
-                e.currentTarget.style.color = 'var(--accent)'
-                e.currentTarget.style.background = 'var(--accent-light)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border)'
-                e.currentTarget.style.color = 'var(--text-light)'
-                e.currentTarget.style.background = 'transparent'
-              }}
-            >
-              ＋ 行を追加
-            </button>
-          )}
+              {/* Persistent add-row button — Edit mode only */}
+              {viewMode === 'edit' && (
+                <button
+                  ref={addRowBtnRef}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onAddRowBelow(lastRowId)}
+                  style={{
+                    width: '100%',
+                    marginTop: '0.375rem',
+                    height: '28px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    border: '1.5px dashed var(--border)',
+                    borderRadius: 'var(--rs)',
+                    background: 'transparent',
+                    color: 'var(--text-light)',
+                    cursor: 'pointer',
+                    transition: 'all .15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--accent)'
+                    e.currentTarget.style.color = 'var(--accent)'
+                    e.currentTarget.style.background = 'var(--accent-light)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)'
+                    e.currentTarget.style.color = 'var(--text-light)'
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  ＋ 行を追加
+                </button>
+              )}
+            </div>{/* /zoomTarget */}
+          </div>{/* /tableContainer */}
 
           {model.label && (
             <p className="text-xs mt-2" style={{ color: 'var(--text-light)' }}>
@@ -311,7 +311,6 @@ export function PreviewPanel({
     </div>
   )
 }
-
 
 type DataRowProps = {
   row: TableRow

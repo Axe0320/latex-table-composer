@@ -1,11 +1,21 @@
 import { useState, useMemo } from 'react'
-import type { TableModel } from './lib/table/types'
+import type { TableModel, BorderStyle } from './lib/table/types'
 import { parseInput } from './lib/table/parser'
 import { PreviewPanel } from './components/PreviewPanel'
 import { latexGenerator } from './lib/table/generators/latexGenerator'
 import { FormattingBar } from './components/FormattingBar'
 import { type FormattingOptions, DEFAULT_OPTIONS } from './lib/table/formatters/options'
 import { EXAMPLES } from './lib/example/examples'
+import { CreateTableDialog } from './components/CreateTableDialog'
+import {
+  addRowAbove,
+  addRowBelow,
+  deleteRow,
+  addColumnLeft,
+  addColumnRight,
+  deleteColumn,
+  createEmptyTable,
+} from './lib/table/editor'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -68,6 +78,7 @@ function App() {
   const [model, setModel] = useState<TableModel>(DUMMY_MODEL)
   const [options, setOptions] = useState<FormattingOptions>(DEFAULT_OPTIONS)
   const [exampleIdx, setExampleIdx] = useState(0)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
 
   function handleLoadExample() {
@@ -81,19 +92,34 @@ function App() {
   }
 
   function updateCell(rowId: string, cellId: string, value: string) {
-    setModel((prev) => ({
-      ...prev,
-      rows: prev.rows.map((row) =>
+    setModel((prev) => {
+      const updatedRows = prev.rows.map((row) =>
         row.id !== rowId
           ? row
-          : {
-              ...row,
-              cells: row.cells.map((cell) =>
-                cell.id !== cellId ? cell : { ...cell, value }
-              ),
-            }
-      ),
+          : { ...row, cells: row.cells.map((cell) => cell.id !== cellId ? cell : { ...cell, value }) }
+      )
+      // Keep columns in sync with header row values
+      const headerRow = updatedRows.find((r) => r.rowType === 'header')
+      const columns = headerRow ? headerRow.cells.map((c) => c.value) : prev.columns
+      return { ...prev, rows: updatedRows, columns }
+    })
+  }
+
+  function handleAddRowAbove(rowId: string) { setModel((prev) => addRowAbove(prev, rowId)) }
+  function handleAddRowBelow(rowId: string) { setModel((prev) => addRowBelow(prev, rowId)) }
+  function handleDeleteRow(rowId: string) { setModel((prev) => deleteRow(prev, rowId)) }
+  function handleAddColumnLeft(colIdx: number) { setModel((prev) => addColumnLeft(prev, colIdx)) }
+  function handleAddColumnRight(colIdx: number) { setModel((prev) => addColumnRight(prev, colIdx)) }
+  function handleDeleteColumn(colIdx: number) { setModel((prev) => deleteColumn(prev, colIdx)) }
+  function handleRowBorderChange(rowId: string, border: BorderStyle) {
+    setModel((prev) => ({
+      ...prev,
+      rows: prev.rows.map((r) => r.id !== rowId ? r : { ...r, bottomBorder: border }),
     }))
+  }
+  function handleCreateTable(rows: number, cols: number) {
+    setModel(createEmptyTable(rows, cols))
+    setShowCreateDialog(false)
   }
 
   function handleCopyLatex() {
@@ -125,6 +151,9 @@ function App() {
           <div className="flex items-center gap-2">
             <button className="btn-secondary text-sm" onClick={handleLoadExample}>
               Load Example
+            </button>
+            <button className="btn-secondary text-sm" onClick={() => setShowCreateDialog(true)}>
+              Create Table
             </button>
             <button className="btn-primary text-sm" onClick={handleCopyLatex}>
               {copied ? 'Copied!' : 'Copy LaTeX'}
@@ -166,7 +195,18 @@ function App() {
         <div className="hidden md:flex md:flex-col gap-5 mt-5">
           <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <InputPanel onParse={setModel} />
-            <PreviewPanel model={model} options={options} onCellChange={updateCell} />
+            <PreviewPanel
+              model={model}
+              options={options}
+              onCellChange={updateCell}
+              onAddRowAbove={handleAddRowAbove}
+              onAddRowBelow={handleAddRowBelow}
+              onDeleteRow={handleDeleteRow}
+              onAddColumnLeft={handleAddColumnLeft}
+              onAddColumnRight={handleAddColumnRight}
+              onDeleteColumn={handleDeleteColumn}
+              onRowBorderChange={handleRowBorderChange}
+            />
           </div>
           <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />
         </div>
@@ -174,7 +214,20 @@ function App() {
         {/* Mobile: single panel by tab */}
         <div className="md:hidden mt-4">
           {activeTab === 'input' && <InputPanel onParse={setModel} />}
-          {activeTab === 'preview' && <PreviewPanel model={model} options={options} onCellChange={updateCell} />}
+          {activeTab === 'preview' && (
+            <PreviewPanel
+              model={model}
+              options={options}
+              onCellChange={updateCell}
+              onAddRowAbove={handleAddRowAbove}
+              onAddRowBelow={handleAddRowBelow}
+              onDeleteRow={handleDeleteRow}
+              onAddColumnLeft={handleAddColumnLeft}
+              onAddColumnRight={handleAddColumnRight}
+              onDeleteColumn={handleDeleteColumn}
+              onRowBorderChange={handleRowBorderChange}
+            />
+          )}
           {activeTab === 'latex' && <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />}
         </div>
       </main>
@@ -187,6 +240,14 @@ function App() {
         >
           Copied to clipboard!
         </div>
+      )}
+
+      {/* Create Table Dialog */}
+      {showCreateDialog && (
+        <CreateTableDialog
+          onClose={() => setShowCreateDialog(false)}
+          onCreate={handleCreateTable}
+        />
       )}
     </div>
   )

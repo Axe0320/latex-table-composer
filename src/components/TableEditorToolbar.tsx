@@ -162,11 +162,11 @@ export function TableEditorToolbar({
 
       {/* Clear formatting */}
       <TBtn
-        title="書式をクリア（bold / italic / underline / 背景色）"
+        title="書式をリセット（bold / italic / underline / 背景色）"
         onClick={onClearFormatting}
         disabled={!hasSelection}
       >
-        Tx
+        Reset
       </TBtn>
     </div>
   )

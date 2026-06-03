@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import type { TableModel } from './lib/table/types'
 import { parseInput } from './lib/table/parser'
 import { PreviewPanel } from './components/PreviewPanel'
+import { latexGenerator } from './lib/table/generators/latexGenerator'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -62,6 +63,7 @@ function App() {
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<'input' | 'preview' | 'latex'>('input')
   const [model, setModel] = useState<TableModel>(DUMMY_MODEL)
+  const latex = useMemo(() => latexGenerator(model), [model])
 
   function updateCell(rowId: string, cellId: string, value: string) {
     setModel((prev) => ({
@@ -80,7 +82,7 @@ function App() {
   }
 
   function handleCopyLatex() {
-    navigator.clipboard.writeText('% LaTeX output will appear here').then(() => {
+    navigator.clipboard.writeText(latex).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -146,14 +148,14 @@ function App() {
         <div className="hidden md:grid gap-5" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <InputPanel onParse={setModel} />
           <PreviewPanel model={model} onCellChange={updateCell} />
-          <LaTeXPanel />
+          <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />
         </div>
 
         {/* Mobile: single panel by tab */}
         <div className="md:hidden">
           {activeTab === 'input' && <InputPanel onParse={setModel} />}
           {activeTab === 'preview' && <PreviewPanel model={model} onCellChange={updateCell} />}
-          {activeTab === 'latex' && <LaTeXPanel />}
+          {activeTab === 'latex' && <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />}
         </div>
       </main>
 
@@ -273,7 +275,15 @@ function InputPanel({ onParse }: { onParse: (model: TableModel) => void }) {
   )
 }
 
-function LaTeXPanel() {
+function LaTeXPanel({
+  latex,
+  onCopy,
+  copied,
+}: {
+  latex: string
+  onCopy: () => void
+  copied: boolean
+}) {
   return (
     <div className="card">
       <PanelHeader num="3" title="LaTeX" />
@@ -281,8 +291,7 @@ function LaTeXPanel() {
         readOnly
         className="w-full font-mono text-sm resize-none"
         rows={12}
-        placeholder="% LaTeX output will appear here"
-        value=""
+        value={latex}
         style={{
           background: '#F9F9FF',
           border: '1.5px solid var(--border)',
@@ -294,8 +303,8 @@ function LaTeXPanel() {
           cursor: 'default',
         }}
       />
-      <button className="btn-secondary w-full mt-1 text-sm">
-        Copy LaTeX
+      <button className="btn-secondary w-full mt-1 text-sm" onClick={onCopy}>
+        {copied ? 'Copied!' : 'Copy LaTeX'}
       </button>
     </div>
   )

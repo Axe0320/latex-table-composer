@@ -36,8 +36,8 @@ function makeId(): string {
 }
 
 const DUMMY_MODEL: TableModel = {
-  title: 'Classification Results on Test Set',
-  label: 'tab:results',
+  title: '',
+  label: '',
   environment: 'table*',
   columns: ['Method', 'Accuracy', 'Precision', 'F1'],
   rows: [

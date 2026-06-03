@@ -97,6 +97,36 @@ body {
   flex-direction: column;
 }
 
+/* Note indicators (Edit mode) — ::after/::before so textContent is unaffected */
+
+/* C: marker text in top-right corner */
+.cell-note-text[data-markers]::after {
+  content: attr(data-markers);
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 0.58em;
+  font-weight: 700;
+  color: var(--accent);
+  pointer-events: none;
+  line-height: 1;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* A: triangle badge in top-right corner (optional toggle) */
+.cell-note-triangle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 8px 8px 0;
+  border-color: transparent var(--accent) transparent transparent;
+  pointer-events: none;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

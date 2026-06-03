@@ -110,6 +110,9 @@ export function PreviewPanel({
 
   const lastRowId = visibleRows[visibleRows.length - 1]?.id ?? ''
 
+  // Note triangle badge toggle (local UI state, Edit mode only)
+  const [showNoteTriangle, setShowNoteTriangle] = useState(false)
+
   // Caption/Label local state (immediate display, debounce propagated to model via props)
   const [captionInput, setCaptionInput] = useState(model.title)
   const [labelInput, setLabelInput] = useState(model.label)
@@ -342,6 +345,7 @@ export function PreviewPanel({
                         options={options}
                         selectedCellIds={selectedCellIds}
                         isDraggingRef={isDraggingRef}
+                        showNoteTriangle={showNoteTriangle}
                         onCellChange={onCellChange}
                         onCellSelect={onCellSelect}
                         onSelectRow={onSelectRow}
@@ -444,6 +448,8 @@ export function PreviewPanel({
             noteStyle={model.noteStyle ?? 'tnote'}
             noteNumbering={model.noteNumbering ?? 'alpha'}
             viewMode={viewMode}
+            showNoteTriangle={showNoteTriangle}
+            onToggleTriangle={() => setShowNoteTriangle(v => !v)}
             onAddNote={onAddNote}
             onUpdateNote={onUpdateNote}
             onRemoveNote={onRemoveNote}
@@ -466,6 +472,7 @@ type DataRowProps = {
   options: FormattingOptions
   selectedCellIds: Set<string>
   isDraggingRef: React.MutableRefObject<boolean>
+  showNoteTriangle: boolean
   onCellChange: (rowId: string, cellId: string, value: string) => void
   onCellSelect: (cellId: string, rowIdx: number, colIdx: number, isShift: boolean) => void
   onSelectRow: (rowIdx: number) => void
@@ -486,6 +493,7 @@ function DataRow({
   options,
   selectedCellIds,
   isDraggingRef,
+  showNoteTriangle,
   onCellChange,
   onCellSelect,
   onSelectRow,
@@ -620,10 +628,16 @@ function DataRow({
         // Use visible index as model col index (hidden cells not yet implemented)
         const modelColIdx = row.cells.findIndex((c) => c.id === cell.id)
         const baseBg = cell.backgroundColor ? bgToCss(cell.backgroundColor) : 'transparent'
+        const hasNoteMarkers = isEditable && (cell.noteMarkers ?? []).length > 0
 
         return (
           <Tag
             key={cell.id}
+            className={[
+              hasNoteMarkers ? 'cell-note-text' : '',
+              hasNoteMarkers && showNoteTriangle ? 'cell-note-triangle' : '',
+            ].filter(Boolean).join(' ') || undefined}
+            data-markers={hasNoteMarkers ? cell.noteMarkers!.join(',') : undefined}
             contentEditable={isEditable ? 'plaintext-only' : undefined}
             suppressContentEditableWarning
             onMouseDown={(e) => {
@@ -670,6 +684,7 @@ function DataRow({
               cursor: isEditable ? 'text' : 'default',
               transition: 'background .1s',
               backgroundColor: baseBg,
+              position: hasNoteMarkers ? 'relative' : undefined,
             }}
             onFocus={
               isEditable
@@ -847,12 +862,15 @@ function PanelHeader({
 /* ── Notes Manager ───────────────────────────────────── */
 function NotesManager({
   notes, noteStyle, noteNumbering, viewMode,
+  showNoteTriangle, onToggleTriangle,
   onAddNote, onUpdateNote, onRemoveNote, onChangeNoteStyle, onChangeNoteNumbering,
 }: {
   notes: TableNote[]
   noteStyle: NoteStyle
   noteNumbering: NoteNumbering
   viewMode: 'preview' | 'edit'
+  showNoteTriangle: boolean
+  onToggleTriangle: () => void
   onAddNote: () => void
   onUpdateNote: (id: string, patch: Partial<TableNote>) => void
   onRemoveNote: (id: string) => void
@@ -895,6 +913,18 @@ function NotesManager({
                 {n === 'alpha' ? 'a,b,c…' : '1,2,3…'}
               </button>
             ))}
+            <div style={{ width: '1px', height: '14px', background: 'var(--border)' }} />
+            {/* Triangle badge toggle (option A) */}
+            <button onMouseDown={e => e.preventDefault()} onClick={onToggleTriangle}
+              title={showNoteTriangle ? '三角バッジを非表示' : '三角バッジを表示（Excel スタイル）'}
+              style={{
+                padding: '1px 8px', fontSize: '0.7rem', fontWeight: 600, borderRadius: 'var(--rx)',
+                border: 'none', cursor: 'pointer', transition: 'all .15s',
+                background: showNoteTriangle ? 'var(--accent-light)' : 'var(--bg)',
+                color: showNoteTriangle ? 'var(--accent)' : 'var(--text-sub)',
+              }}>
+              △
+            </button>
           </>
         )}
       </div>

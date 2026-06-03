@@ -2,12 +2,11 @@
 
 **表データを論文向け LaTeX に変換・整形するツール**
 
-> 千葉工業大学「Web3・AI概論」第6回課題 — プロトタイプ v2
-
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat-square&logo=vite)](https://vitejs.dev/)
 [![Tailwind](https://img.shields.io/badge/Tailwind-3-06B6D4?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
 ---
 
@@ -28,6 +27,23 @@ Excel で表作成
   ↓                           Copy LaTeX ボタン一発でコピー
 見た目を修正して再編集
 ```
+
+バックエンド・データベース不要。ブラウザだけで完結します。
+
+---
+
+## 課題背景
+
+千葉工業大学 2026年前期「Web3・AI概論」の第6回課題（テーマ：プロトタイプ v2）として作成しました。
+
+**解決したかった問題：**  
+研究・論文執筆では Excel の実験結果や Python の出力を LaTeX の表に変換する作業が毎回発生する。手作業での変換はミスが起きやすく、再編集のたびに同じ作業を繰り返す必要がある。
+
+**対象ユーザー：**  
+LaTeX で論文を書く学部生・大学院生・研究者。実験結果を論文表に整形したい人。
+
+**一言紹介：**  
+貼り付けるだけで論文向け LaTeX 表が生成される、研究者のための表変換ツール。
 
 ---
 
@@ -53,16 +69,25 @@ Excel で表作成
 
 ### 出力設定
 
-- **罫線スタイル**：Default（3線 `\hline`）/ Booktabs / Full Grid / 上下のみ
+- **罫線スタイル**：Default（3線 `\hline`）/ Booktabs（投稿用）/ Full Grid / 上下のみ
 - **小数点桁数**：Auto（4桁）/ 0〜4桁
 - **欠損値**：`---` / `N/A` / `-` / 空白
 - **出力環境**：`table` / `table*`
 
-### 注釈（PR-15C）
+### 注釈
 
 - `\tnote{}` / `\footnotemark` 両対応
 - 自動採番：アルファベット（a, b, c…）/ 数字（1, 2, 3…）
 - `\begin{threeparttable}` を自動で挿入・管理
+
+---
+
+## Screenshot
+
+> **Add screenshot here.**  
+> `docs/screenshot.png` を配置後、以下のコメントアウトを解除してください。
+
+<!-- ![App Screenshot](docs/screenshot.png) -->
 
 ---
 
@@ -82,7 +107,7 @@ flowchart TD
     D([🔗 Merge\n複数ソース統合]):::input
 
     E[detect\nフォーマット自動判定]:::process
-    F[parse\nCSV / TSV / Excel\nClassification Report\nLog]:::process
+    F[parse\nCSV / TSV / Excel\nClassification Report / Log]:::process
     G[normalize\n列数補正・数値判定\nセル trim]:::process
 
     H[(TableModel\nSingle Source of Truth)]:::model
@@ -114,9 +139,8 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    classDef step fill:#6C63FF,color:#fff,stroke:none,rx:8
+    classDef step fill:#6C63FF,color:#fff,stroke:none
     classDef data fill:#EEF2FF,color:#374151,stroke:#6C63FF,stroke-width:2px
-    classDef arrow color:#6C63FF
 
     R[Raw Input]:::data
     P[parse]:::step
@@ -147,8 +171,6 @@ classDiagram
         +string id
         +TableCell[] cells
         +string rowType
-        +boolean separatorTop
-        +boolean separatorBottom
         +BorderStyle topBorder
         +BorderStyle bottomBorder
     }
@@ -158,7 +180,6 @@ classDiagram
         +boolean bold
         +boolean italic
         +boolean underline
-        +boolean hidden
         +string align
         +string backgroundColor
         +string[] noteMarkers
@@ -253,6 +274,7 @@ flowchart TD
 | ビルド | Vite 5 |
 | スタイリング | Tailwind CSS 3 + Custom CSS Variables |
 | Excel 解析 | SheetJS（xlsx）※ dynamic import |
+| AI アシスタント | Claude Code (Anthropic) / Antigravity |
 | デプロイ | Vercel |
 
 ---
@@ -282,30 +304,42 @@ npm run build
 ```
 src/
 ├── components/
-│   ├── InputPanel.tsx        # 入力パネル（Paste/Upload/Create/Merge）
-│   ├── PreviewPanel.tsx      # プレビュー + 編集
+│   ├── InputPanel.tsx         # 入力パネル（Paste/Upload/Create/Merge）
+│   ├── PreviewPanel.tsx       # プレビュー + 編集
 │   ├── TableEditorToolbar.tsx # 編集ツールバー
-│   ├── FormattingBar.tsx     # 出力設定
-│   └── MergePanel.tsx        # ソース統合
+│   ├── FormattingBar.tsx      # 出力設定
+│   └── MergePanel.tsx         # ソース統合
 │
 ├── lib/table/
-│   ├── types.ts              # TableModel / TableCell / TableNote 型定義
-│   ├── parser/               # 各フォーマットのパーサー
-│   │   ├── detect.ts
-│   │   ├── parseCSV.ts
-│   │   ├── parseTSV.ts
-│   │   ├── parseClassificationReport.ts
-│   │   ├── parseLog.ts
-│   │   └── parseExcel.ts
-│   ├── normalize/            # データ正規化
-│   ├── formatters/           # 出力フォーマット設定
-│   ├── generators/           # LaTeX 生成
-│   │   └── latexGenerator.ts
-│   ├── editor/               # 編集操作（純粋関数）
-│   └── merge/                # マージ操作
+│   ├── types.ts               # TableModel / TableCell / TableNote 型定義
+│   ├── parser/                # 各フォーマットのパーサー
+│   ├── normalize/             # データ正規化
+│   ├── formatters/            # 出力フォーマット設定
+│   ├── generators/            # LaTeX 生成
+│   ├── editor/                # 編集操作（純粋関数）
+│   └── merge/                 # マージ操作
 │
-└── App.tsx                   # アプリケーションルート
+└── App.tsx                    # アプリケーションルート
 ```
+
+---
+
+## 制限事項
+
+- **Excel の複雑なフォーマット**：結合セルや複数シートには非対応です。1シート・シンプルな表を対象としています。
+- **LaTeX 特殊記号**：`&` `%` `$` `#` `_` `{` `}` `\` は自動エスケープされますが、数式等の高度な LaTeX 記法はそのまま入力してください。
+- **multirow / multicolumn**：セル結合には対応していません（将来対応予定）。
+- **大規模テーブル**：100行 × 20列程度を想定。それ以上はパフォーマンスが低下することがあります。
+
+---
+
+## Roadmap
+
+- [ ] multirow / multicolumn 対応
+- [ ] drag & drop によるセル移動
+- [ ] ダークモード
+- [ ] 複数表の一括管理
+- [ ] Citation ⇄ BibTeX Converter への統合
 
 ---
 
@@ -315,17 +349,17 @@ src/
 
 ---
 
-## 課題情報
+## 備考
 
-| 項目 | 内容 |
-|------|------|
-| 大学 | 千葉工業大学 |
-| 科目 | Web3・AI概論 |
-| 回 | 第6回 |
-| 課題 | プロトタイプ v2 の作成 |
+本リポジトリは、千葉工業大学「Web3・AI概論」第6回課題の要件である以下を満たすよう作成しています。
+
+1. AI 支援（Claude Code / Antigravity）を活用したプロトタイプ開発
+2. 研究・学習上の実課題を解決するプロダクトの試作
+3. GitHub へのソースコード公開
+4. Vercel へのデプロイ（予定）
 
 ---
 
 ## License
 
-MIT
+[MIT License](LICENSE)

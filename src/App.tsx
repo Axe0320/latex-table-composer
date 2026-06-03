@@ -5,6 +5,7 @@ import { PreviewPanel } from './components/PreviewPanel'
 import { latexGenerator } from './lib/table/generators/latexGenerator'
 import { FormattingBar } from './components/FormattingBar'
 import { type FormattingOptions, DEFAULT_OPTIONS } from './lib/table/formatters/options'
+import { EXAMPLES } from './lib/example/examples'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -66,7 +67,18 @@ function App() {
   const [activeTab, setActiveTab] = useState<'input' | 'preview' | 'latex'>('input')
   const [model, setModel] = useState<TableModel>(DUMMY_MODEL)
   const [options, setOptions] = useState<FormattingOptions>(DEFAULT_OPTIONS)
+  const [exampleIdx, setExampleIdx] = useState(0)
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
+
+  function handleLoadExample() {
+    const example = EXAMPLES[exampleIdx % EXAMPLES.length]!
+    const parsed = parseInput(example.input)
+    if (parsed) {
+      parsed.title = example.description
+      setModel(parsed)
+    }
+    setExampleIdx((i) => i + 1)
+  }
 
   function updateCell(rowId: string, cellId: string, value: string) {
     setModel((prev) => ({
@@ -111,7 +123,7 @@ function App() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn-secondary text-sm" onClick={() => {}}>
+            <button className="btn-secondary text-sm" onClick={handleLoadExample}>
               Load Example
             </button>
             <button className="btn-primary text-sm" onClick={handleCopyLatex}>

@@ -12,102 +12,126 @@ export function FormattingBar({ options, onChange }: Props) {
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 mt-5"
+      className="mt-5"
       style={{
         background: 'var(--card)',
         border: '1px solid var(--border)',
         borderRadius: 'var(--r)',
-        boxShadow: 'var(--shadow-sm)',
+        boxShadow: 'var(--shadow-md)',
+        padding: '1.25rem 1.5rem',
       }}
     >
-      <BarLabel>Formatting</BarLabel>
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <span
+          className="text-xs font-bold uppercase"
+          style={{ color: 'var(--text-light)', letterSpacing: '0.1em' }}
+        >
+          出力設定
+        </span>
+        <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+      </div>
 
-      <BarField label="Environment">
-        <select
+      {/* Controls grid */}
+      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+        <SelectField
+          label="出力環境"
+          hint="table / table*"
           value={options.environment}
-          onChange={(e) => update('environment', e.target.value as FormattingOptions['environment'])}
-          style={selectStyle}
-        >
-          <option value="table*">table*</option>
-          <option value="table">table</option>
-        </select>
-      </BarField>
+          onChange={(v) => update('environment', v as FormattingOptions['environment'])}
+          options={[
+            { value: 'table*', label: 'table*（2段組向け）' },
+            { value: 'table', label: 'table（1段組）' },
+          ]}
+        />
 
-      <BarField label="Decimal">
-        <select
+        <SelectField
+          label="小数点桁数"
+          hint="数値の丸め"
           value={String(options.decimalPrecision)}
-          onChange={(e) => {
-            const v = e.target.value
-            update('decimalPrecision', v === 'auto' ? 'auto' : Number(v))
-          }}
-          style={selectStyle}
-        >
-          <option value="auto">Auto</option>
-          <option value="0">0</option>
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-        </select>
-      </BarField>
+          onChange={(v) => update('decimalPrecision', v === 'auto' ? 'auto' : Number(v))}
+          options={[
+            { value: 'auto', label: 'Auto（4桁）' },
+            { value: '0', label: '0桁　(0)' },
+            { value: '1', label: '1桁　(0.0)' },
+            { value: '2', label: '2桁　(0.00)' },
+            { value: '3', label: '3桁　(0.000)' },
+            { value: '4', label: '4桁　(0.0000)' },
+          ]}
+        />
 
-      <BarField label="Missing">
-        <select
+        <SelectField
+          label="欠損値"
+          hint="空セルの表示"
           value={options.missingValue}
-          onChange={(e) => update('missingValue', e.target.value as FormattingOptions['missingValue'])}
-          style={selectStyle}
-        >
-          <option value="---">---</option>
-          <option value="N/A">N/A</option>
-          <option value="-">-</option>
-          <option value="blank">blank</option>
-        </select>
-      </BarField>
+          onChange={(v) => update('missingValue', v as FormattingOptions['missingValue'])}
+          options={[
+            { value: '---', label: '--- （横線）' },
+            { value: 'N/A', label: 'N/A' },
+            { value: '-', label: '- （ハイフン）' },
+            { value: 'blank', label: '空白' },
+          ]}
+        />
 
-      <BarField label="Border">
-        <select
+        <SelectField
+          label="罫線スタイル"
+          hint="横線の入れ方"
           value={options.borderTemplate}
-          onChange={(e) => update('borderTemplate', e.target.value as FormattingOptions['borderTemplate'])}
-          style={selectStyle}
-        >
-          <option value="academic">Academic</option>
-          <option value="full">Full Grid</option>
-          <option value="minimal">Minimal</option>
-        </select>
-      </BarField>
+          onChange={(v) => update('borderTemplate', v as FormattingOptions['borderTemplate'])}
+          options={[
+            { value: 'academic', label: 'Academic（論文向け）' },
+            { value: 'full', label: 'Full Grid（全罫線）' },
+            { value: 'minimal', label: 'Minimal（上下のみ）' },
+          ]}
+        />
+      </div>
     </div>
   )
 }
 
-function BarLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className="text-xs font-bold uppercase"
-      style={{ color: 'var(--text-light)', letterSpacing: '0.1em' }}
-    >
-      {children}
-    </span>
-  )
+type SelectFieldProps = {
+  label: string
+  hint: string
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string }[]
 }
 
-function BarField({ label, children }: { label: string; children: React.ReactNode }) {
+function SelectField({ label, hint, value, onChange, options }: SelectFieldProps) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs" style={{ color: 'var(--text-sub)', whiteSpace: 'nowrap' }}>
-        {label}
-      </span>
-      {children}
+    <div className="flex flex-col gap-1">
+      <div>
+        <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+          {label}
+        </span>
+        <span className="text-xs ml-1.5" style={{ color: 'var(--text-light)' }}>
+          {hint}
+        </span>
+      </div>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          fontSize: '0.875rem',
+          padding: '0.45rem 0.75rem',
+          border: '1.5px solid var(--border)',
+          borderRadius: 'var(--rs)',
+          background: '#FAFAFA',
+          color: 'var(--text)',
+          outline: 'none',
+          cursor: 'pointer',
+          transition: 'border-color .18s',
+          width: '100%',
+        }}
+        onFocus={(e) => (e.target.style.borderColor = 'var(--border-focus)')}
+        onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
     </div>
   )
-}
-
-const selectStyle: React.CSSProperties = {
-  fontSize: '0.8rem',
-  padding: '0.25rem 0.5rem',
-  border: '1.5px solid var(--border)',
-  borderRadius: 'var(--rx)',
-  background: 'var(--card)',
-  color: 'var(--text)',
-  outline: 'none',
-  cursor: 'pointer',
 }

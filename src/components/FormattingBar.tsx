@@ -79,10 +79,10 @@ export function FormattingBar({ options, onChange }: Props) {
           value={options.borderTemplate}
           onChange={(v) => update('borderTemplate', v as FormattingOptions['borderTemplate'])}
           options={[
-            { value: 'academic', label: 'Academic（Booktabs）' },
-            { value: 'classic', label: 'Classic（\\hline）' },
-            { value: 'full', label: 'Full Grid（全罫線）' },
-            { value: 'minimal', label: 'Minimal（上下のみ）' },
+            { value: 'classic', label: 'シンプル3線（\\hline）' },
+            { value: 'academic', label: '学術標準（booktabs）' },
+            { value: 'full', label: '全罫線' },
+            { value: 'minimal', label: '上下のみ' },
           ]}
         />
       </div>

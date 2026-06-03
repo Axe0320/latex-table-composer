@@ -9,5 +9,5 @@ export const DEFAULT_OPTIONS: FormattingOptions = {
   decimalPrecision: 'auto',
   missingValue: '---',
   environment: 'table*',
-  borderTemplate: 'academic',
+  borderTemplate: 'classic',
 }

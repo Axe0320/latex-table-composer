@@ -218,14 +218,6 @@ export function PreviewPanel({
       >
         <PanelHeader viewMode={viewMode} onViewModeChange={onViewModeChange} />
 
-        {/* Caption / Label inline edit fields (always visible) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '0.75rem' }}>
-          <CaptionField label="Caption" value={captionInput} placeholder="表のタイトルを入力..."
-            onChange={(v) => { setCaptionInput(v); onCaptionChange(v) }} />
-          <CaptionField label="Label" value={labelInput} placeholder="tab:result"
-            onChange={(v) => { setLabelInput(v); onLabelChange(v) }} />
-        </div>
-
         {viewMode === 'edit' && (
           <TableEditorToolbar
             onAddRow={() => onAddRowBelow(lastRowId)}
@@ -441,6 +433,14 @@ export function PreviewPanel({
               \label{'{' + model.label + '}'}
             </p>
           )}
+
+          {/* Caption / Label (outside sticky — reduces sticky header height) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
+            <CaptionField label="Caption" value={captionInput} placeholder="表のタイトルを入力..."
+              onChange={(v) => { setCaptionInput(v); onCaptionChange(v) }} />
+            <CaptionField label="Label" value={labelInput} placeholder="tab:result"
+              onChange={(v) => { setLabelInput(v); onLabelChange(v) }} />
+          </div>
 
           {/* Notes management UI */}
           <NotesManager

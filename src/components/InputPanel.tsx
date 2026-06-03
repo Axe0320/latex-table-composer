@@ -17,6 +17,7 @@ const QUICK_PRESETS = [
 
 export type InputPanelProps = {
   mode: InputMode
+  onCollapse?: () => void  // shown in Edit mode only (Paste+Edit layout)
   onParse: (model: TableModel) => void
   onMainFileUpload: (file: File) => Promise<void>
   onCreateTable: (rows: number, cols: number) => void
@@ -30,7 +31,22 @@ export type InputPanelProps = {
 
 export function InputPanel(props: InputPanelProps) {
   return (
-    <div className="card">
+    <div className="card" style={{ position: 'relative' }}>
+      {props.onCollapse && (
+        <button
+          onClick={props.onCollapse}
+          title="Input を折りたたむ"
+          style={{
+            position: 'absolute', top: '0.75rem', right: '0.75rem',
+            width: '1.5rem', height: '1.5rem', border: '1px solid var(--border)',
+            borderRadius: '4px', background: 'transparent', color: 'var(--text-sub)',
+            cursor: 'pointer', fontSize: '0.7rem', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 1,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-sub)' }}
+        >«</button>
+      )}
       {props.mode === 'paste' && <PasteContent onParse={props.onParse} />}
       {props.mode === 'upload' && <UploadContent onUpload={props.onMainFileUpload} />}
       {props.mode === 'create' && <CreateContent onCreateTable={props.onCreateTable} />}

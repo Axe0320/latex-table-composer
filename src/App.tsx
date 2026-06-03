@@ -99,6 +99,16 @@ function App() {
   const [editMode, setEditMode] = useState<EditMode>('output')
   const [sources, setSources] = useState<TableSource[]>([])
   const [inputMode, setInputMode] = useState<InputMode>('paste')
+  const [inputCollapsed, setInputCollapsed] = useState(false)
+  const hasAutoCollapsed = useRef(false)
+
+  // Auto-collapse Input when entering Edit mode in Paste mode (once per session)
+  useEffect(() => {
+    if (viewMode === 'edit' && inputMode === 'paste' && !hasAutoCollapsed.current) {
+      setInputCollapsed(true)
+      hasAutoCollapsed.current = true
+    }
+  }, [viewMode, inputMode])
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
 
 
@@ -478,11 +488,31 @@ function App() {
         {/* Desktop layout: changes based on inputMode */}
         <div className="hidden md:flex md:flex-col gap-5 mt-5">
           {inputMode === 'paste' ? (
-            /* Paste: side-by-side Input + Preview */
+            /* Paste: side-by-side, Input collapses in Edit mode */
             <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <InputPanel mode="paste" {...inputPanelProps} />
-              </div>
+              {inputCollapsed ? (
+                <button
+                  onClick={() => setInputCollapsed(false)}
+                  title="Input を開く"
+                  style={{
+                    flexShrink: 0, width: '2rem', padding: '0.5rem 0',
+                    border: '1px solid var(--border)', borderRadius: 'var(--rs)',
+                    background: 'var(--card)', color: 'var(--text-sub)', cursor: 'pointer',
+                    fontSize: '0.8rem', writingMode: 'vertical-rl', letterSpacing: '0.05em',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: 'var(--shadow-sm)', transition: 'all .15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-sub)'; e.currentTarget.style.background = 'var(--card)' }}
+                >
+                  » INPUT
+                </button>
+              ) : (
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <InputPanel mode="paste" {...inputPanelProps}
+                    onCollapse={viewMode === 'edit' ? () => setInputCollapsed(true) : undefined} />
+                </div>
+              )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <PreviewPanel {...previewProps} />
               </div>

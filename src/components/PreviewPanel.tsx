@@ -41,7 +41,7 @@ export function PreviewPanel({
 
   const lastRowId = visibleRows[visibleRows.length - 1]?.id ?? ''
 
-  // Scroll to add-row button when rows increase in Edit mode
+  // Scroll add-row button into view when rows increase in Edit mode
   const addRowBtnRef = useRef<HTMLButtonElement>(null)
   const prevRowCountRef = useRef(model.rows.length)
   useEffect(() => {
@@ -50,6 +50,17 @@ export function PreviewPanel({
     }
     prevRowCountRef.current = model.rows.length
   }, [model.rows.length, viewMode])
+
+  // Scroll overflow container to right end when columns increase in Edit mode
+  const overflowRef = useRef<HTMLDivElement>(null)
+  const prevColCountRef = useRef(visibleColCount)
+  useEffect(() => {
+    if (viewMode === 'edit' && visibleColCount > prevColCountRef.current) {
+      const el = overflowRef.current
+      if (el) el.scrollLeft = el.scrollWidth
+    }
+    prevColCountRef.current = visibleColCount
+  }, [visibleColCount, viewMode])
 
   // Check whether a column has any non-empty content
   function colHasContent(colIdx: number): boolean {
@@ -74,30 +85,43 @@ export function PreviewPanel({
   }
 
   return (
-    <div className="card">
-      <PanelHeader viewMode={viewMode} onViewModeChange={onViewModeChange} />
+    <div className="card" style={{ padding: 0 }}>
+      {/* Sticky header — stays visible while scrolling table */}
+      <div
+        style={{
+          position: 'sticky',
+          top: '70px',
+          zIndex: 5,
+          background: 'var(--card)',
+          borderRadius: 'var(--r) var(--r) 0 0',
+          padding: '1.25rem 1.5rem 0',
+          borderBottom: viewMode === 'edit' ? '1px solid var(--border)' : 'none',
+          paddingBottom: viewMode === 'edit' ? '0.75rem' : '0',
+        }}
+      >
+        <PanelHeader viewMode={viewMode} onViewModeChange={onViewModeChange} />
+        {viewMode === 'edit' && (
+          <TableEditorToolbar
+            onAddRow={() => onAddRowBelow(lastRowId)}
+            onDeleteLastRow={handleDeleteLastRow}
+            onAddColumn={() => onAddColumnRight(visibleColCount - 1)}
+            onDeleteLastColumn={handleDeleteLastColumn}
+          />
+        )}
+      </div>
 
       {visibleRows.length === 0 ? (
-        <EmptyState />
+        <div style={{ padding: '1.25rem 1.5rem' }}><EmptyState /></div>
       ) : (
-        <div>
+        <div style={{ padding: '0.75rem 1.5rem 1.25rem' }}>
           {model.title && (
             <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-sub)' }}>
               {model.title}
             </p>
           )}
 
-          {viewMode === 'edit' && (
-            <TableEditorToolbar
-              onAddRow={() => onAddRowBelow(lastRowId)}
-              onDeleteLastRow={handleDeleteLastRow}
-              onAddColumn={() => onAddColumnRight(visibleColCount - 1)}
-              onDeleteLastColumn={handleDeleteLastColumn}
-            />
-          )}
-
           <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'stretch' }}>
-            <div style={{ flex: 1, overflowX: 'auto', minWidth: 0 }}>
+            <div ref={overflowRef} style={{ flex: 1, overflowX: 'auto', minWidth: 0 }}>
             <table
               style={{
                 borderCollapse: 'collapse',
@@ -256,6 +280,7 @@ export function PreviewPanel({
     </div>
   )
 }
+
 
 type DataRowProps = {
   row: TableRow

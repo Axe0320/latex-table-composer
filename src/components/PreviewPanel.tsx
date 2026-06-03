@@ -772,8 +772,8 @@ function CaptionField({ label, value, placeholder, onChange }: {
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-      <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-light)',
-        whiteSpace: 'nowrap', width: '3.5rem', textAlign: 'right', letterSpacing: '0.03em' }}>
+      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text)',
+        whiteSpace: 'nowrap', width: '3.5rem', textAlign: 'right' }}>
         {label}
       </span>
       <input
@@ -884,7 +884,7 @@ function NotesManager({
     <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '0.625rem' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-        <span className="text-xs font-bold uppercase" style={{ color: 'var(--text-light)', letterSpacing: '0.08em' }}>
+        <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
           Notes
         </span>
         {viewMode === 'edit' && (

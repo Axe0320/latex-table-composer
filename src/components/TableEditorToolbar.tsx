@@ -23,6 +23,7 @@ type Props = {
   hiddenColumnNames: string[]
   onStyleChange: (patch: StylePatch) => void
   onClearFormatting: () => void
+  onSelectAll: () => void
   onHideColumns: () => void
   onShowColumn: (colIdx: number) => void
   onShowAllColumns: () => void
@@ -41,6 +42,7 @@ export function TableEditorToolbar({
   hiddenColumnNames,
   onStyleChange,
   onClearFormatting,
+  onSelectAll,
   onHideColumns,
   onShowColumn,
   onShowAllColumns,
@@ -98,15 +100,18 @@ export function TableEditorToolbar({
         <Divider />
 
         <ToolbarGroup label="揃え">
-          {(['left', 'center', 'right'] as const).map((a) => (
-            <SBtn key={a}
-              title={a === 'left' ? '左揃え' : a === 'center' ? '中央揃え' : '右揃え'}
-              active={hasSelection && selectedCells.every((c) => c.align === a)}
-              disabled={!hasSelection}
-              onClick={() => onStyleChange({ align: a })}>
-              {a === 'left' ? 'L' : a === 'center' ? 'C' : 'R'}
-            </SBtn>
-          ))}
+          <SBtn title="左揃え" active={hasSelection && selectedCells.every(c => c.align === 'left')}
+            disabled={!hasSelection} onClick={() => onStyleChange({ align: 'left' })}>
+            <AlignLeftIcon />
+          </SBtn>
+          <SBtn title="中央揃え" active={hasSelection && selectedCells.every(c => c.align === 'center')}
+            disabled={!hasSelection} onClick={() => onStyleChange({ align: 'center' })}>
+            <AlignCenterIcon />
+          </SBtn>
+          <SBtn title="右揃え" active={hasSelection && selectedCells.every(c => c.align === 'right')}
+            disabled={!hasSelection} onClick={() => onStyleChange({ align: 'right' })}>
+            <AlignRightIcon />
+          </SBtn>
         </ToolbarGroup>
 
         <Divider />
@@ -161,6 +166,10 @@ export function TableEditorToolbar({
           disabled={!hasSelection}
         >
           Reset
+        </TBtn>
+
+        <TBtn title="全セルを選択（hidden 列含む）" onClick={onSelectAll}>
+          All
         </TBtn>
 
         {/* Formatted / Raw segmented control — pushed to right */}
@@ -377,5 +386,34 @@ function SBtn({ title, active = false, disabled = false, children, onClick, styl
     >
       {children}
     </button>
+  )
+}
+
+/* ── Alignment SVG Icons ─────────────────────────────── */
+function AlignLeftIcon() {
+  return (
+    <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden="true">
+      <rect x="0" y="0"  width="14" height="2" rx="1" fill="currentColor"/>
+      <rect x="0" y="5"  width="9"  height="2" rx="1" fill="currentColor"/>
+      <rect x="0" y="10" width="14" height="2" rx="1" fill="currentColor"/>
+    </svg>
+  )
+}
+function AlignCenterIcon() {
+  return (
+    <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden="true">
+      <rect x="0"   y="0"  width="14" height="2" rx="1" fill="currentColor"/>
+      <rect x="2.5" y="5"  width="9"  height="2" rx="1" fill="currentColor"/>
+      <rect x="0"   y="10" width="14" height="2" rx="1" fill="currentColor"/>
+    </svg>
+  )
+}
+function AlignRightIcon() {
+  return (
+    <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden="true">
+      <rect x="0" y="0"  width="14" height="2" rx="1" fill="currentColor"/>
+      <rect x="5" y="5"  width="9"  height="2" rx="1" fill="currentColor"/>
+      <rect x="0" y="10" width="14" height="2" rx="1" fill="currentColor"/>
+    </svg>
   )
 }

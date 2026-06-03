@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import type { TableModel, BorderStyle } from './lib/table/types'
 import { parseInput } from './lib/table/parser'
 import { PreviewPanel } from './components/PreviewPanel'
@@ -132,16 +132,56 @@ function App() {
     setModel((prev) => showAllColumns(prev))
   }
 
+  // ── Caption / Label debounce (with unmount cleanup) ──
+  const captionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const labelDebounceRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (captionDebounceRef.current) clearTimeout(captionDebounceRef.current)
+    if (labelDebounceRef.current)   clearTimeout(labelDebounceRef.current)
+  }, [])
+
+  function handleCaptionChange(title: string) {
+    if (captionDebounceRef.current) clearTimeout(captionDebounceRef.current)
+    captionDebounceRef.current = setTimeout(() => setModel(p => ({ ...p, title })), 300)
+  }
+  function handleLabelChange(label: string) {
+    if (labelDebounceRef.current) clearTimeout(labelDebounceRef.current)
+    labelDebounceRef.current = setTimeout(() => setModel(p => ({ ...p, label })), 300)
+  }
+
+  // ── Bulk selection ────────────────────────────────────
+  function handleSelectRow(rowIdx: number) {
+    const row = model.rows[rowIdx]
+    if (!row) return
+    setSelectedCellIds(new Set(row.cells.map(c => c.id)))  // includes hidden
+    setAnchorCell(null)
+  }
+  function handleSelectColumn(colIdx: number) {
+    const ids = new Set(
+      model.rows.flatMap(row => row.cells[colIdx] ? [row.cells[colIdx]!.id] : [])
+    )
+    setSelectedCellIds(ids)
+    setAnchorCell(null)
+  }
+  function handleSelectAll() {
+    // Requirement: hidden cells are included (model全体基準)
+    setSelectedCellIds(new Set(model.rows.flatMap(row => row.cells.map(c => c.id))))
+    setAnchorCell(null)
+  }
+
   // Shared props objects (defined after all handlers)
   const previewProps = {
     model, options, viewMode, onViewModeChange: setViewMode,
     editMode, onEditModeChange: setEditMode,
     onCellChange: updateCell, onCellSelect: handleCellSelect,
     onStyleChange: handleStyleChange, onClearFormatting: handleClearFormatting,
+    onSelectAll: handleSelectAll,
+    onSelectRow: handleSelectRow, onSelectColumn: handleSelectColumn,
     selectedCellIds, selectedCells, selectedColIndices,
     hiddenColumnIndices, hiddenColumnNames,
     onHideColumns: handleHideColumns, onShowColumn: handleShowColumn,
     onShowAllColumns: handleShowAllColumns,
+    onCaptionChange: handleCaptionChange, onLabelChange: handleLabelChange,
     onAddRowAbove: handleAddRowAbove, onAddRowBelow: handleAddRowBelow,
     onDeleteRow: handleDeleteRow, onAddColumnLeft: handleAddColumnLeft,
     onAddColumnRight: handleAddColumnRight, onDeleteColumn: handleDeleteColumn,

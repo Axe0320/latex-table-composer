@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { TableModel, TableRow, BorderStyle } from '../lib/table/types'
 import type { FormattingOptions } from '../lib/table/formatters/options'
 import { formatValue } from '../lib/table/formatters/shared/formatValue'
@@ -30,6 +30,9 @@ type EditHandlers = {
   onCellSelect: (cellId: string, rowIdx: number, colIdx: number, isShift: boolean) => void
   onStyleChange: (patch: StylePatch) => void
   onClearFormatting: () => void
+  onSelectAll: () => void
+  onSelectRow: (rowIdx: number) => void
+  onSelectColumn: (colIdx: number) => void
   selectedColIndices: number[]
   hiddenColumnIndices: number[]
   hiddenColumnNames: string[]
@@ -37,6 +40,8 @@ type EditHandlers = {
   onShowColumn: (colIdx: number) => void
   onShowAllColumns: () => void
   onEditModeChange: (mode: EditMode) => void
+  onCaptionChange: (title: string) => void
+  onLabelChange: (label: string) => void
 }
 
 type Props = EditHandlers & {
@@ -60,6 +65,9 @@ export function PreviewPanel({
   onCellSelect,
   onStyleChange,
   onClearFormatting,
+  onSelectAll,
+  onSelectRow,
+  onSelectColumn,
   selectedColIndices,
   hiddenColumnIndices,
   hiddenColumnNames,
@@ -67,6 +75,8 @@ export function PreviewPanel({
   onShowColumn,
   onShowAllColumns,
   onEditModeChange,
+  onCaptionChange,
+  onLabelChange,
   onAddRowAbove,
   onAddRowBelow,
   onDeleteRow,
@@ -84,6 +94,27 @@ export function PreviewPanel({
   const visibleColCount = visibleRows[0]?.cells.filter((c) => !c.hidden).length ?? 0
 
   const lastRowId = visibleRows[visibleRows.length - 1]?.id ?? ''
+
+  // Caption/Label local state (immediate display, debounce propagated to model via props)
+  const [captionInput, setCaptionInput] = useState(model.title)
+  const [labelInput, setLabelInput] = useState(model.label)
+  useEffect(() => setCaptionInput(model.title), [model.title])
+  useEffect(() => setLabelInput(model.label), [model.label])
+
+  // Drag selection state
+  // isDraggingRef: used in event handlers (avoids stale closure)
+  // isDragging: used for user-select style (triggers re-render)
+  const isDraggingRef = useRef(false)
+  const [isDragging, setIsDragging] = useState(false)
+
+  useEffect(() => {
+    const endDrag = () => {
+      isDraggingRef.current = false
+      setIsDragging(false)
+    }
+    document.addEventListener('mouseup', endDrag)
+    return () => document.removeEventListener('mouseup', endDrag)
+  }, [])
 
   // Scroll add-row button into view when rows increase in Edit mode
   const addRowBtnRef = useRef<HTMLButtonElement>(null)
@@ -168,6 +199,15 @@ export function PreviewPanel({
         }}
       >
         <PanelHeader viewMode={viewMode} onViewModeChange={onViewModeChange} />
+
+        {/* Caption / Label inline edit fields (always visible) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '0.75rem' }}>
+          <CaptionField label="Caption" value={captionInput} placeholder="表のタイトルを入力..."
+            onChange={(v) => { setCaptionInput(v); onCaptionChange(v) }} />
+          <CaptionField label="Label" value={labelInput} placeholder="tab:result"
+            onChange={(v) => { setLabelInput(v); onLabelChange(v) }} />
+        </div>
+
         {viewMode === 'edit' && (
           <TableEditorToolbar
             onAddRow={() => onAddRowBelow(lastRowId)}
@@ -180,6 +220,7 @@ export function PreviewPanel({
             hiddenColumnNames={hiddenColumnNames}
             onStyleChange={onStyleChange}
             onClearFormatting={onClearFormatting}
+            onSelectAll={onSelectAll}
             onHideColumns={onHideColumns}
             onShowColumn={onShowColumn}
             onShowAllColumns={onShowAllColumns}
@@ -193,11 +234,6 @@ export function PreviewPanel({
         <div style={{ padding: '1.25rem 1.5rem' }}><EmptyState /></div>
       ) : (
         <div style={{ padding: '0.75rem 1.5rem 1.25rem' }}>
-          {model.title && (
-            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-sub)' }}>
-              {model.title}
-            </p>
-          )}
 
           {/*
             Layout:
@@ -224,6 +260,7 @@ export function PreviewPanel({
                     fontSize: '0.875rem',
                     fontFamily: 'inherit',
                     minWidth: '100%',
+                    userSelect: isDragging ? 'none' : 'auto',
                     width: 'auto',
                   }}
                 >
@@ -233,7 +270,13 @@ export function PreviewPanel({
                       <tr>
                         <td style={{ width: '3.5rem' }} />
                         {Array.from({ length: visibleColCount }, (_, colIdx) => (
-                          <td key={colIdx} style={{ textAlign: 'center', padding: '2px 4px' }}>
+                          <td key={colIdx} style={{ textAlign: 'center', padding: '2px 4px', cursor: 'default' }}
+                            onMouseDown={(e) => {
+                              if ((e.target as HTMLElement).closest('button')) return
+                              e.preventDefault()
+                              onSelectColumn(colIdx)
+                            }}
+                          >
                             <div style={{ display: 'flex', justifyContent: 'center', gap: '2px' }}>
                               <EBtn
                                 title="左に列を追加"
@@ -280,8 +323,11 @@ export function PreviewPanel({
                         editMode={effectiveEditMode}
                         options={options}
                         selectedCellIds={selectedCellIds}
+                        isDraggingRef={isDraggingRef}
                         onCellChange={onCellChange}
                         onCellSelect={onCellSelect}
+                        onSelectRow={onSelectRow}
+                        onStartDrag={() => { isDraggingRef.current = true; setIsDragging(true) }}
                         onAddRowAbove={() => onAddRowAbove(row.id)}
                         onAddRowBelow={() => onAddRowBelow(row.id)}
                         onDeleteRow={() => onDeleteRow(row.id)}
@@ -388,8 +434,11 @@ type DataRowProps = {
   editMode: EditMode
   options: FormattingOptions
   selectedCellIds: Set<string>
+  isDraggingRef: React.MutableRefObject<boolean>
   onCellChange: (rowId: string, cellId: string, value: string) => void
   onCellSelect: (cellId: string, rowIdx: number, colIdx: number, isShift: boolean) => void
+  onSelectRow: (rowIdx: number) => void
+  onStartDrag: () => void
   onAddRowAbove: () => void
   onAddRowBelow: () => void
   onDeleteRow: () => void
@@ -405,8 +454,11 @@ function DataRow({
   editMode,
   options,
   selectedCellIds,
+  isDraggingRef,
   onCellChange,
   onCellSelect,
+  onSelectRow,
+  onStartDrag,
   onAddRowAbove,
   onAddRowBelow,
   onDeleteRow,
@@ -448,10 +500,17 @@ function DataRow({
       {/* Row controls — Edit mode only */}
       {viewMode === 'edit' && (
         <td
+          title="クリックで行を全選択"
+          onMouseDown={(e) => {
+            if ((e.target as HTMLElement).closest('button, select')) return
+            e.preventDefault()
+            onSelectRow(modelRowIdx)
+          }}
           style={{
             width: '3.5rem',
             padding: '2px',
             verticalAlign: 'middle',
+            cursor: 'default',
             borderTop,
             borderBottom,
           }}
@@ -538,9 +597,22 @@ function DataRow({
             suppressContentEditableWarning
             onMouseDown={(e) => {
               if (!isEditable) return
-              // shift+click: prevent focus steal (range selection only)
-              if (e.shiftKey) e.preventDefault()
-              onCellSelect(cell.id, modelRowIdx, modelColIdx, e.shiftKey)
+              if (e.shiftKey) {
+                // shift+click: extend rectangle, strict e.preventDefault (req.2)
+                e.preventDefault()
+                onCellSelect(cell.id, modelRowIdx, modelColIdx, true)
+              } else {
+                // normal click: allow contentEditable focus, start potential drag
+                onCellSelect(cell.id, modelRowIdx, modelColIdx, false)
+                onStartDrag()
+              }
+            }}
+            onMouseEnter={(e) => {
+              // drag extension: strict e.preventDefault to stop caret jumping (req.2)
+              if (isEditable && isDraggingRef.current) {
+                e.preventDefault()
+                onCellSelect(cell.id, modelRowIdx, modelColIdx, true)
+              }
             }}
             onBlur={
               isEditable
@@ -634,6 +706,34 @@ function EBtn({ title, danger = false, children, onClick, onMouseDown }: EBtnPro
     >
       {children}
     </button>
+  )
+}
+
+/* ── Caption / Label field ──────────────────────────── */
+function CaptionField({ label, value, placeholder, onChange }: {
+  label: string; value: string; placeholder: string; onChange: (v: string) => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-light)',
+        whiteSpace: 'nowrap', width: '3.5rem', textAlign: 'right', letterSpacing: '0.03em' }}>
+        {label}
+      </span>
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          flex: 1, padding: '3px 8px', fontSize: '0.8rem',
+          border: '1px solid var(--border)', borderRadius: 'var(--rx)',
+          background: '#FAFAFA', color: 'var(--text)', outline: 'none',
+          transition: 'border-color .15s',
+        }}
+        onFocus={(e) => { e.target.style.borderColor = 'var(--border-focus)' }}
+        onBlur={(e) => { e.target.style.borderColor = 'var(--border)' }}
+      />
+    </div>
   )
 }
 

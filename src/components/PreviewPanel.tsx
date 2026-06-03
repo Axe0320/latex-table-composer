@@ -74,7 +74,8 @@ export function PreviewPanel({
             />
           )}
 
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'stretch' }}>
+            <div style={{ flex: 1, overflowX: 'auto', minWidth: 0 }}>
             <table
               style={{
                 borderCollapse: 'collapse',
@@ -122,16 +123,8 @@ export function PreviewPanel({
                         </div>
                       </td>
                     ))}
-                    {/* Add column at far right */}
-                    <td style={{ padding: '2px 4px', textAlign: 'center' }}>
-                      <EBtn
-                        title="右端に列を追加"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => onAddColumnRight(visibleColCount - 1)}
-                      >
-                        ＋
-                      </EBtn>
-                    </td>
+                    {/* Spacer — right-side add-column button handles end-of-table insertion */}
+                    <td style={{ width: '2px' }} />
                   </tr>
                 )}
 
@@ -153,7 +146,44 @@ export function PreviewPanel({
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>{/* /overflowX */}
+
+            {/* Right-side add-column button — Edit mode only */}
+            {viewMode === 'edit' && (
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onAddColumnRight(visibleColCount - 1)}
+                title="列を追加"
+                style={{
+                  width: '28px',
+                  flexShrink: 0,
+                  border: '1.5px dashed var(--border)',
+                  borderRadius: 'var(--rs)',
+                  background: 'transparent',
+                  color: 'var(--text-light)',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all .15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--accent)'
+                  e.currentTarget.style.color = 'var(--accent)'
+                  e.currentTarget.style.background = 'var(--accent-light)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--border)'
+                  e.currentTarget.style.color = 'var(--text-light)'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                ＋
+              </button>
+            )}
+          </div>{/* /flex row */}
 
           {/* Persistent add-row button — Edit mode only */}
           {viewMode === 'edit' && (
@@ -296,15 +326,15 @@ function DataRow({
               onMouseDown={(e) => e.stopPropagation()}
               onChange={(e) => onRowBorderChange(e.target.value as BorderStyle)}
               style={{
-                marginTop: '2px',
-                fontSize: '0.6rem',
-                padding: '1px 2px',
+                marginTop: '4px',
+                fontSize: '0.7rem',
+                padding: '2px 4px',
                 border: '1px solid var(--border)',
-                borderRadius: '3px',
+                borderRadius: '4px',
                 background: 'var(--card)',
                 color: 'var(--text-sub)',
                 cursor: 'pointer',
-                maxWidth: '3rem',
+                maxWidth: '3.5rem',
               }}
             >
               <option value="none">–</option>
@@ -385,10 +415,10 @@ function EBtn({ title, danger = false, children, onClick, onMouseDown }: EBtnPro
       onClick={onClick}
       onMouseDown={onMouseDown}
       style={{
-        minWidth: '22px',
-        height: '22px',
-        padding: '0 4px',
-        fontSize: '0.65rem',
+        minWidth: '28px',
+        height: '28px',
+        padding: '0 6px',
+        fontSize: '0.75rem',
         fontWeight: 600,
         lineHeight: 1,
         display: 'flex',

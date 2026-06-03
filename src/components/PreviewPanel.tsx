@@ -4,6 +4,7 @@ import type { FormattingOptions } from '../lib/table/formatters/options'
 import { formatValue } from '../lib/table/formatters/shared/formatValue'
 import { TableEditorToolbar } from './TableEditorToolbar'
 import type { StylePatch } from '../lib/table/editor/updateCellStyle'
+import type { EditMode } from './TableEditorToolbar'
 
 // Maps xcolor notation to CSS for Preview display
 function bgToCss(bg: string): string {
@@ -29,6 +30,13 @@ type EditHandlers = {
   onCellSelect: (cellId: string, rowIdx: number, colIdx: number, isShift: boolean) => void
   onStyleChange: (patch: StylePatch) => void
   onClearFormatting: () => void
+  selectedColIndices: number[]
+  hiddenColumnIndices: number[]
+  hiddenColumnNames: string[]
+  onHideColumns: () => void
+  onShowColumn: (colIdx: number) => void
+  onShowAllColumns: () => void
+  onEditModeChange: (mode: EditMode) => void
 }
 
 type Props = EditHandlers & {
@@ -38,6 +46,7 @@ type Props = EditHandlers & {
   onViewModeChange: (mode: 'preview' | 'edit') => void
   selectedCellIds: Set<string>
   selectedCells: import('../lib/table/types').TableCell[]
+  editMode: EditMode
 }
 
 const MIN_ZOOM = 0.45
@@ -51,6 +60,13 @@ export function PreviewPanel({
   onCellSelect,
   onStyleChange,
   onClearFormatting,
+  selectedColIndices,
+  hiddenColumnIndices,
+  hiddenColumnNames,
+  onHideColumns,
+  onShowColumn,
+  onShowAllColumns,
+  onEditModeChange,
   onAddRowAbove,
   onAddRowBelow,
   onDeleteRow,
@@ -60,7 +76,10 @@ export function PreviewPanel({
   onRowBorderChange,
   selectedCellIds,
   selectedCells,
+  editMode,
 }: Props) {
+  // In Preview mode always use formatted display; in Edit mode respect editMode
+  const effectiveEditMode: EditMode = viewMode === 'edit' ? editMode : 'formatted'
   const visibleRows = model.rows.filter((r) => !r.cells.every((c) => c.hidden))
   const visibleColCount = visibleRows[0]?.cells.filter((c) => !c.hidden).length ?? 0
 
@@ -156,8 +175,16 @@ export function PreviewPanel({
             onAddColumn={() => onAddColumnRight(visibleColCount - 1)}
             onDeleteLastColumn={handleDeleteLastColumn}
             selectedCells={selectedCells}
+            selectedColIndices={selectedColIndices}
+            hiddenColumnIndices={hiddenColumnIndices}
+            hiddenColumnNames={hiddenColumnNames}
             onStyleChange={onStyleChange}
             onClearFormatting={onClearFormatting}
+            onHideColumns={onHideColumns}
+            onShowColumn={onShowColumn}
+            onShowAllColumns={onShowAllColumns}
+            editMode={editMode}
+            onEditModeChange={onEditModeChange}
           />
         )}
       </div>
@@ -250,6 +277,7 @@ export function PreviewPanel({
                         isFirst={rowIdx === 0}
                         isLast={rowIdx === visibleRows.length - 1}
                         viewMode={viewMode}
+                        editMode={effectiveEditMode}
                         options={options}
                         selectedCellIds={selectedCellIds}
                         onCellChange={onCellChange}
@@ -357,6 +385,7 @@ type DataRowProps = {
   isFirst: boolean
   isLast: boolean
   viewMode: 'preview' | 'edit'
+  editMode: EditMode
   options: FormattingOptions
   selectedCellIds: Set<string>
   onCellChange: (rowId: string, cellId: string, value: string) => void
@@ -373,6 +402,7 @@ function DataRow({
   isFirst,
   isLast,
   viewMode,
+  editMode,
   options,
   selectedCellIds,
   onCellChange,
@@ -477,8 +507,10 @@ function DataRow({
       {/* Data cells */}
       {visibleCells.map((cell, visibleColIdx) => {
         const Tag = row.rowType === 'header' ? 'th' : 'td'
-        const displayValue =
-          row.rowType === 'header' ? cell.value : formatValue(cell.value, options)
+        // Raw mode shows cell.value directly; Formatted mode applies formatValue to data cells
+        const displayValue = (editMode === 'raw' || row.rowType === 'header')
+          ? cell.value
+          : formatValue(cell.value, options)
         const isEditable = viewMode === 'edit'
         const isSelected = isEditable && selectedCellIds.has(cell.id)
         // Use visible index as model col index (hidden cells not yet implemented)

@@ -17,8 +17,14 @@ import {
   createEmptyTable,
   updateCellStyle,
   getCellsInRect,
+  hideColumns,
+  showColumn,
+  showAllColumns,
+  getHiddenColumnIndices,
+  getColIndicesFromCellIds,
 } from './lib/table/editor'
 import type { StylePatch, CellAnchor } from './lib/table/editor'
+import type { EditMode } from './components/TableEditorToolbar'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -85,12 +91,39 @@ function App() {
   const [viewMode, setViewMode] = useState<'preview' | 'edit'>('preview')
   const [selectedCellIds, setSelectedCellIds] = useState<Set<string>>(new Set())
   const [anchorCell, setAnchorCell] = useState<CellAnchor | null>(null)
+  const [editMode, setEditMode] = useState<EditMode>('formatted')
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
 
   const selectedCells = useMemo(
     () => model.rows.flatMap((row) => row.cells.filter((c) => selectedCellIds.has(c.id))),
     [model, selectedCellIds]
   )
+
+  const hiddenColumnIndices = useMemo(() => getHiddenColumnIndices(model), [model])
+
+  const hiddenColumnNames = useMemo(() => {
+    const headerRow = model.rows.find((r) => r.rowType === 'header')
+    return hiddenColumnIndices.map((colIdx) =>
+      headerRow?.cells[colIdx]?.value || `列${colIdx + 1}`
+    )
+  }, [model, hiddenColumnIndices])
+
+  const selectedColIndices = useMemo(
+    () => getColIndicesFromCellIds(model, selectedCellIds),
+    [model, selectedCellIds]
+  )
+
+  function handleHideColumns() {
+    if (selectedColIndices.length === 0) return
+    setModel((prev) => hideColumns(prev, selectedColIndices))
+    clearSelection()
+  }
+  function handleShowColumn(colIdx: number) {
+    setModel((prev) => showColumn(prev, colIdx))
+  }
+  function handleShowAllColumns() {
+    setModel((prev) => showAllColumns(prev))
+  }
 
   function handleCellSelect(cellId: string, rowIdx: number, colIdx: number, isShift: boolean) {
     if (!isShift || !anchorCell) {
@@ -245,10 +278,20 @@ function App() {
               options={options}
               viewMode={viewMode}
               onViewModeChange={setViewMode}
+              editMode={editMode}
+              onEditModeChange={setEditMode}
               onCellChange={updateCell}
               onCellSelect={handleCellSelect}
               onStyleChange={handleStyleChange}
               onClearFormatting={handleClearFormatting}
+              selectedCellIds={selectedCellIds}
+              selectedCells={selectedCells}
+              selectedColIndices={selectedColIndices}
+              hiddenColumnIndices={hiddenColumnIndices}
+              hiddenColumnNames={hiddenColumnNames}
+              onHideColumns={handleHideColumns}
+              onShowColumn={handleShowColumn}
+              onShowAllColumns={handleShowAllColumns}
               onAddRowAbove={handleAddRowAbove}
               onAddRowBelow={handleAddRowBelow}
               onDeleteRow={handleDeleteRow}
@@ -256,8 +299,6 @@ function App() {
               onAddColumnRight={handleAddColumnRight}
               onDeleteColumn={handleDeleteColumn}
               onRowBorderChange={handleRowBorderChange}
-              selectedCellIds={selectedCellIds}
-              selectedCells={selectedCells}
             />
           </div>
           <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />
@@ -272,10 +313,20 @@ function App() {
               options={options}
               viewMode={viewMode}
               onViewModeChange={setViewMode}
+              editMode={editMode}
+              onEditModeChange={setEditMode}
               onCellChange={updateCell}
               onCellSelect={handleCellSelect}
               onStyleChange={handleStyleChange}
               onClearFormatting={handleClearFormatting}
+              selectedCellIds={selectedCellIds}
+              selectedCells={selectedCells}
+              selectedColIndices={selectedColIndices}
+              hiddenColumnIndices={hiddenColumnIndices}
+              hiddenColumnNames={hiddenColumnNames}
+              onHideColumns={handleHideColumns}
+              onShowColumn={handleShowColumn}
+              onShowAllColumns={handleShowAllColumns}
               onAddRowAbove={handleAddRowAbove}
               onAddRowBelow={handleAddRowBelow}
               onDeleteRow={handleDeleteRow}
@@ -283,8 +334,6 @@ function App() {
               onAddColumnRight={handleAddColumnRight}
               onDeleteColumn={handleDeleteColumn}
               onRowBorderChange={handleRowBorderChange}
-              selectedCellIds={selectedCellIds}
-              selectedCells={selectedCells}
             />
           )}
           {activeTab === 'latex' && <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />}

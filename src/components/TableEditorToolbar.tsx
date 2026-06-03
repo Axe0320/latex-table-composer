@@ -1,6 +1,8 @@
 import type { TableCell } from '../lib/table/types'
 import type { StylePatch } from '../lib/table/editor/updateCellStyle'
 
+export type EditMode = 'formatted' | 'raw'
+
 const BG_OPTIONS: { title: string; value: string | undefined; css: string }[] = [
   { title: 'なし', value: undefined, css: 'transparent' },
   { title: 'Gray', value: 'gray!20', css: 'rgba(120,120,120,0.25)' },
@@ -16,8 +18,16 @@ type Props = {
   onAddColumn: () => void
   onDeleteLastColumn: () => void
   selectedCells: TableCell[]
+  selectedColIndices: number[]
+  hiddenColumnIndices: number[]
+  hiddenColumnNames: string[]
   onStyleChange: (patch: StylePatch) => void
   onClearFormatting: () => void
+  onHideColumns: () => void
+  onShowColumn: (colIdx: number) => void
+  onShowAllColumns: () => void
+  editMode: EditMode
+  onEditModeChange: (mode: EditMode) => void
 }
 
 export function TableEditorToolbar({
@@ -26,148 +36,216 @@ export function TableEditorToolbar({
   onAddColumn,
   onDeleteLastColumn,
   selectedCells,
+  selectedColIndices,
+  hiddenColumnIndices,
+  hiddenColumnNames,
   onStyleChange,
   onClearFormatting,
+  onHideColumns,
+  onShowColumn,
+  onShowAllColumns,
+  editMode,
+  onEditModeChange,
 }: Props) {
   const hasSelection = selectedCells.length > 0
+  const hasHiddenCols = hiddenColumnIndices.length > 0
 
   const allBold = hasSelection && selectedCells.every((c) => c.bold)
   const allItalic = hasSelection && selectedCells.every((c) => c.italic)
   const allUnderline = hasSelection && selectedCells.every((c) => c.underline)
 
-  function toggleBold() {
-    onStyleChange({ bold: allBold ? undefined : true })
-  }
-  function toggleItalic() {
-    onStyleChange({ italic: allItalic ? undefined : true })
-  }
-  function toggleUnderline() {
-    onStyleChange({ underline: allUnderline ? undefined : true })
-  }
-
   return (
     <div
       style={{
         display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
+        flexDirection: 'column',
+        gap: '0.375rem',
         padding: '0.4rem 0.75rem',
         marginBottom: '0.75rem',
         background: 'var(--bg)',
         border: '1px solid var(--border)',
         borderRadius: 'var(--rx)',
-        flexWrap: 'wrap',
       }}
     >
-      {/* Row / Column operations */}
-      <ToolbarGroup label="行">
-        <TBtn onClick={onAddRow} title="末尾に行を追加">＋行</TBtn>
-        <TBtn onClick={onDeleteLastRow} title="末尾行を削除" danger>－行</TBtn>
-      </ToolbarGroup>
+      {/* Main controls row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <ToolbarGroup label="行">
+          <TBtn onClick={onAddRow} title="末尾に行を追加">＋行</TBtn>
+          <TBtn onClick={onDeleteLastRow} title="末尾行を削除" danger>－行</TBtn>
+        </ToolbarGroup>
 
-      <Divider />
+        <Divider />
 
-      <ToolbarGroup label="列">
-        <TBtn onClick={onAddColumn} title="末尾に列を追加">＋列</TBtn>
-        <TBtn onClick={onDeleteLastColumn} title="末尾列を削除（確認あり）" danger>－列</TBtn>
-      </ToolbarGroup>
+        <ToolbarGroup label="列">
+          <TBtn onClick={onAddColumn} title="末尾に列を追加">＋列</TBtn>
+          <TBtn onClick={onDeleteLastColumn} title="末尾列を削除（確認あり）" danger>－列</TBtn>
+        </ToolbarGroup>
 
-      <Divider />
+        <Divider />
 
-      {/* Text style */}
-      <ToolbarGroup label="スタイル">
-        <SBtn
-          title="太字"
-          active={allBold}
-          disabled={!hasSelection}
-          onClick={toggleBold}
-          style={{ fontWeight: 700 }}
-        >
-          B
-        </SBtn>
-        <SBtn
-          title="斜体"
-          active={allItalic}
-          disabled={!hasSelection}
-          onClick={toggleItalic}
-          style={{ fontStyle: 'italic' }}
-        >
-          I
-        </SBtn>
-        <SBtn
-          title="下線"
-          active={allUnderline}
-          disabled={!hasSelection}
-          onClick={toggleUnderline}
-          style={{ textDecoration: 'underline' }}
-        >
-          U
-        </SBtn>
-      </ToolbarGroup>
+        <ToolbarGroup label="スタイル">
+          <SBtn title="太字" active={allBold} disabled={!hasSelection}
+            onClick={() => onStyleChange({ bold: allBold ? undefined : true })}
+            style={{ fontWeight: 700 }}>B</SBtn>
+          <SBtn title="斜体" active={allItalic} disabled={!hasSelection}
+            onClick={() => onStyleChange({ italic: allItalic ? undefined : true })}
+            style={{ fontStyle: 'italic' }}>I</SBtn>
+          <SBtn title="下線" active={allUnderline} disabled={!hasSelection}
+            onClick={() => onStyleChange({ underline: allUnderline ? undefined : true })}
+            style={{ textDecoration: 'underline' }}>U</SBtn>
+        </ToolbarGroup>
 
-      <Divider />
+        <Divider />
 
-      {/* Alignment */}
-      <ToolbarGroup label="揃え">
-        {(['left', 'center', 'right'] as const).map((a) => (
-          <SBtn
-            key={a}
-            title={a === 'left' ? '左揃え' : a === 'center' ? '中央揃え' : '右揃え'}
-            active={hasSelection && selectedCells.every((c) => c.align === a)}
-            disabled={!hasSelection}
-            onClick={() => onStyleChange({ align: a })}
-          >
-            {a === 'left' ? 'L' : a === 'center' ? 'C' : 'R'}
-          </SBtn>
-        ))}
-      </ToolbarGroup>
-
-      <Divider />
-
-      {/* Background color swatches */}
-      <ToolbarGroup label="背景">
-        {BG_OPTIONS.map((opt) => {
-          const isActive = hasSelection && selectedCells.every(
-            (c) => (c.backgroundColor ?? undefined) === opt.value
-          )
-          return (
-            <button
-              key={opt.title}
-              title={opt.title}
+        <ToolbarGroup label="揃え">
+          {(['left', 'center', 'right'] as const).map((a) => (
+            <SBtn key={a}
+              title={a === 'left' ? '左揃え' : a === 'center' ? '中央揃え' : '右揃え'}
+              active={hasSelection && selectedCells.every((c) => c.align === a)}
               disabled={!hasSelection}
+              onClick={() => onStyleChange({ align: a })}>
+              {a === 'left' ? 'L' : a === 'center' ? 'C' : 'R'}
+            </SBtn>
+          ))}
+        </ToolbarGroup>
+
+        <Divider />
+
+        <ToolbarGroup label="背景">
+          {BG_OPTIONS.map((opt) => {
+            const isActive = hasSelection &&
+              selectedCells.every((c) => (c.backgroundColor ?? undefined) === opt.value)
+            return (
+              <button key={opt.title} title={opt.title} disabled={!hasSelection}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onStyleChange({ backgroundColor: opt.value })}
+                style={{
+                  width: '18px', height: '18px', borderRadius: '3px', padding: 0, flexShrink: 0,
+                  border: isActive ? '2px solid var(--accent)'
+                    : opt.value === undefined ? '1.5px solid var(--border)'
+                    : '1.5px solid transparent',
+                  background: opt.css,
+                  cursor: hasSelection ? 'pointer' : 'default',
+                  opacity: hasSelection ? 1 : 0.4,
+                  transition: 'border-color .12s',
+                }} />
+            )
+          })}
+        </ToolbarGroup>
+
+        <Divider />
+
+        {/* Column visibility: Hide / Show */}
+        <ToolbarGroup label="列表示">
+          <TBtn
+            title="選択列を非表示"
+            onClick={onHideColumns}
+            disabled={!hasSelection || selectedColIndices.length === 0}
+          >
+            Hide
+          </TBtn>
+          <TBtn
+            title="非表示列を全て表示"
+            onClick={onShowAllColumns}
+            disabled={!hasHiddenCols}
+          >
+            Show
+          </TBtn>
+        </ToolbarGroup>
+
+        <Divider />
+
+        <TBtn
+          title="書式をリセット（bold / italic / underline / 背景色）"
+          onClick={onClearFormatting}
+          disabled={!hasSelection}
+        >
+          Reset
+        </TBtn>
+
+        {/* Formatted / Raw segmented control — pushed to right */}
+        <div style={{ marginLeft: 'auto' }}>
+          <div
+            style={{
+              display: 'flex',
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--rx)',
+              padding: '2px',
+              gap: '2px',
+            }}
+          >
+            {(['formatted', 'raw'] as const).map((mode) => (
+              <button
+                key={mode}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onEditModeChange(mode)}
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  borderRadius: 'calc(var(--rx) - 1px)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: editMode === mode ? 'var(--accent-light)' : 'transparent',
+                  color: editMode === mode ? 'var(--accent)' : 'var(--text-sub)',
+                  boxShadow: editMode === mode ? 'var(--shadow-sm)' : 'none',
+                  transition: 'all .15s',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {mode === 'formatted' ? 'Formatted' : 'Raw'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Hidden columns row — only when hidden columns exist */}
+      {hasHiddenCols && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-light)',
+            textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
+            非表示列
+          </span>
+          {hiddenColumnIndices.map((colIdx, i) => (
+            <button
+              key={colIdx}
+              title={`列「${hiddenColumnNames[i] ?? `列${colIdx + 1}`}」を表示`}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onStyleChange({ backgroundColor: opt.value })}
+              onClick={() => onShowColumn(colIdx)}
               style={{
-                width: '18px',
-                height: '18px',
-                borderRadius: '3px',
-                border: isActive
-                  ? '2px solid var(--accent)'
-                  : opt.value === undefined
-                  ? '1.5px solid var(--border)'
-                  : '1.5px solid transparent',
-                background: opt.css,
-                cursor: hasSelection ? 'pointer' : 'default',
-                opacity: hasSelection ? 1 : 0.4,
-                flexShrink: 0,
-                padding: 0,
-                transition: 'border-color .12s',
+                height: '22px',
+                padding: '0 0.5rem',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
+                border: '1.5px solid var(--border)',
+                borderRadius: 'var(--rx)',
+                background: 'var(--card)',
+                color: 'var(--text-sub)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all .12s',
               }}
-            />
-          )
-        })}
-      </ToolbarGroup>
-
-      <Divider />
-
-      {/* Clear formatting */}
-      <TBtn
-        title="書式をリセット（bold / italic / underline / 背景色）"
-        onClick={onClearFormatting}
-        disabled={!hasSelection}
-      >
-        Reset
-      </TBtn>
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--accent)'
+                e.currentTarget.style.color = 'var(--accent)'
+                e.currentTarget.style.background = 'var(--accent-light)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border)'
+                e.currentTarget.style.color = 'var(--text-sub)'
+                e.currentTarget.style.background = 'var(--card)'
+              }}
+            >
+              ▶ {hiddenColumnNames[i] || `列${colIdx + 1}`}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

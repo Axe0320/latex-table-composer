@@ -3,6 +3,8 @@ import { latexEscape } from '../formatters/shared/latexEscape'
 import { formatValue } from '../formatters/shared/formatValue'
 import { type FormattingOptions, DEFAULT_OPTIONS } from '../formatters/options'
 
+type BorderTemplate = FormattingOptions['borderTemplate']
+
 export function latexGenerator(
   model: TableModel,
   opts: FormattingOptions = DEFAULT_OPTIONS
@@ -11,68 +13,120 @@ export function latexGenerator(
   const colSpec = buildColSpec(model)
   const lines: string[] = []
 
+  // Required packages comment (only when needed)
+  const pkgs = detectRequiredPackages(model, opts)
+  if (pkgs.length > 0) {
+    lines.push('% Required Packages:')
+    pkgs.forEach((p) => lines.push(`% ${p}`))
+  }
+
   lines.push(`\\begin{${env}}[tb]`)
   lines.push(`\\caption{${latexEscape(model.title)}}`)
   lines.push(`\\label{${latexEscape(model.label)}}`)
   lines.push('\\begin{center}')
   lines.push(`\\begin{tabular}{${colSpec}}`)
-  lines.push('\\hline')
 
-  const visibleRows = model.rows.filter(
-    (r) => !r.cells.every((c) => c.hidden)
-  )
+  const visibleRows = model.rows.filter((r) => !r.cells.every((c) => c.hidden))
 
   visibleRows.forEach((row, idx) => {
     const isLast = idx === visibleRows.length - 1
 
-    if (shouldHlineBefore(idx, row, opts.borderTemplate)) {
-      lines.push('\\hline')
-    }
+    const lineBefore = getLineBefore(idx, row, opts.borderTemplate)
+    if (lineBefore) lines.push(lineBefore)
 
     lines.push(buildRow(row, opts))
 
-    if (shouldHlineAfter(isLast, row, opts.borderTemplate)) {
-      lines.push('\\hline')
-    }
+    const lineAfter = getLineAfter(isLast, row, opts.borderTemplate)
+    if (lineAfter) lines.push(lineAfter)
   })
 
-  lines.push(`\\end{tabular}`)
+  lines.push('\\end{tabular}')
   lines.push('\\end{center}')
   lines.push(`\\end{${env}}`)
 
   return lines.join('\n')
 }
 
-function shouldHlineBefore(
-  rowIdx: number,
-  row: TableRow,
-  template: FormattingOptions['borderTemplate']
-): boolean {
-  if (rowIdx === 0) return false
+// Returns the line to emit BEFORE a row (or null if none)
+function getLineBefore(rowIdx: number, row: TableRow, template: BorderTemplate): string | null {
+  // Table top border — template's responsibility
+  if (rowIdx === 0) return tableTopLine(template)
 
-  // Row-level border override takes precedence over template
-  if (row.topBorder === 'none') return false
-  if (row.topBorder === 'hline' || row.topBorder === 'midrule') return true
+  // Row-level topBorder override
+  if (row.topBorder) {
+    if (row.topBorder === 'none') return null
+    if (row.topBorder === 'hline') return '\\hline'
+    if (row.topBorder === 'midrule') return '\\midrule'
+  }
 
-  if (template === 'full') return true
-  if (template === 'minimal') return false
-  return row.separatorTop ?? false
+  // separatorTop triggers a line
+  if (row.separatorTop) {
+    if (template === 'academic') return '\\midrule'
+    if (template === 'classic') return '\\hline'
+  }
+
+  if (template === 'full') return '\\hline'
+  return null
 }
 
-function shouldHlineAfter(
-  isLast: boolean,
-  row: TableRow,
-  template: FormattingOptions['borderTemplate']
-): boolean {
-  if (isLast) return true
+// Returns the line to emit AFTER a row (or null if none)
+function getLineAfter(isLast: boolean, row: TableRow, template: BorderTemplate): string | null {
+  // Table bottom border — template's responsibility (always emitted for last row)
+  if (isLast) return tableBottomLine(template)
 
-  // Row-level border override takes precedence over template
-  if (row.bottomBorder === 'none') return false
-  if (row.bottomBorder === 'hline' || row.bottomBorder === 'midrule') return true
+  // Row-level bottomBorder override
+  if (row.bottomBorder) {
+    if (row.bottomBorder === 'none') return null
+    if (row.bottomBorder === 'hline') return '\\hline'
+    if (row.bottomBorder === 'midrule') return '\\midrule'  // PR-10 暫定 → 正式修正
+  }
 
-  if (template === 'full') return true
-  if (template === 'minimal') return false
-  return row.separatorBottom ?? false
+  // separatorBottom triggers a line
+  if (row.separatorBottom) {
+    if (template === 'academic') return '\\midrule'
+    if (template === 'classic') return '\\hline'
+  }
+
+  if (template === 'full') return '\\hline'
+  return null
+}
+
+function tableTopLine(template: BorderTemplate): string {
+  switch (template) {
+    case 'academic': return '\\toprule'
+    case 'minimal': return '\\toprule'
+    case 'classic': return '\\hline'
+    case 'full': return '\\hline'
+  }
+}
+
+function tableBottomLine(template: BorderTemplate): string {
+  switch (template) {
+    case 'academic': return '\\bottomrule'
+    case 'minimal': return '\\bottomrule'
+    case 'classic': return '\\hline'
+    case 'full': return '\\hline'
+  }
+}
+
+// Detect which packages are required for this output
+function detectRequiredPackages(model: TableModel, opts: FormattingOptions): string[] {
+  const pkgs: string[] = []
+
+  // booktabs: academic/minimal template OR any row has midrule
+  const usesBooktabs =
+    opts.borderTemplate === 'academic' ||
+    opts.borderTemplate === 'minimal' ||
+    model.rows.some(
+      (r) => r.bottomBorder === 'midrule' || r.topBorder === 'midrule'
+    )
+  if (usesBooktabs) pkgs.push('\\usepackage{booktabs}')
+
+  // xcolor: any cell has backgroundColor
+  const usesXcolor = model.rows.some((r) => r.cells.some((c) => c.backgroundColor != null))
+  if (usesXcolor) pkgs.push('\\usepackage[table]{xcolor}')
+
+  return pkgs
 }
 
 function buildColSpec(model: TableModel): string {
@@ -98,7 +152,6 @@ function buildRow(row: TableRow, opts: FormattingOptions): string {
   const cells = visibleCells.map((cell) => {
     const raw = row.rowType === 'header' ? cell.value : formatValue(cell.value, opts)
     let value = latexEscape(raw)
-    // Nesting order (innermost first): bold → italic → underline → cellcolor
     if (cell.bold) value = `\\textbf{${value}}`
     if (cell.italic) value = `\\textit{${value}}`
     if (cell.underline) value = `\\underline{${value}}`

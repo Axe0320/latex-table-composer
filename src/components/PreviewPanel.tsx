@@ -1,11 +1,14 @@
 import type { TableModel, TableRow } from '../lib/table/types'
+import type { FormattingOptions } from '../lib/table/formatters/options'
+import { formatValue } from '../lib/table/formatters/shared/formatValue'
 
 type Props = {
   model: TableModel
+  options: FormattingOptions
   onCellChange: (rowId: string, cellId: string, value: string) => void
 }
 
-export function PreviewPanel({ model, onCellChange }: Props) {
+export function PreviewPanel({ model, options, onCellChange }: Props) {
   const visibleRows = model.rows.filter(
     (r) => !r.cells.every((c) => c.hidden)
   )
@@ -19,10 +22,7 @@ export function PreviewPanel({ model, onCellChange }: Props) {
       ) : (
         <div className="overflow-x-auto">
           {model.title && (
-            <p
-              className="text-xs font-semibold mb-2"
-              style={{ color: 'var(--text-sub)' }}
-            >
+            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-sub)' }}>
               {model.title}
             </p>
           )}
@@ -42,6 +42,7 @@ export function PreviewPanel({ model, onCellChange }: Props) {
                   row={row}
                   isFirst={rowIdx === 0}
                   isLast={rowIdx === visibleRows.length - 1}
+                  options={options}
                   onCellChange={onCellChange}
                 />
               ))}
@@ -63,10 +64,11 @@ type RowProps = {
   row: TableRow
   isFirst: boolean
   isLast: boolean
+  options: FormattingOptions
   onCellChange: (rowId: string, cellId: string, value: string) => void
 }
 
-function TableRowEl({ row, isFirst, isLast, onCellChange }: RowProps) {
+function TableRowEl({ row, isFirst, isLast, options, onCellChange }: RowProps) {
   const visibleCells = row.cells.filter((c) => !c.hidden)
 
   const borderTop = (() => {
@@ -85,6 +87,10 @@ function TableRowEl({ row, isFirst, isLast, onCellChange }: RowProps) {
     <tr>
       {visibleCells.map((cell) => {
         const Tag = row.rowType === 'header' ? 'th' : 'td'
+        // Header cells skip formatting; data cells apply formatValue
+        const displayValue =
+          row.rowType === 'header' ? cell.value : formatValue(cell.value, options)
+
         return (
           <Tag
             key={cell.id}
@@ -116,7 +122,7 @@ function TableRowEl({ row, isFirst, isLast, onCellChange }: RowProps) {
               e.currentTarget.style.background = 'transparent'
             }}
           >
-            {cell.value}
+            {displayValue}
           </Tag>
         )
       })}
@@ -145,10 +151,7 @@ function PanelHeader() {
       >
         Preview
       </span>
-      <span
-        className="text-xs ml-auto"
-        style={{ color: 'var(--text-light)' }}
-      >
+      <span className="text-xs ml-auto" style={{ color: 'var(--text-light)' }}>
         Click cell to edit
       </span>
     </div>

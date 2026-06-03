@@ -159,17 +159,19 @@ function App() {
           ))}
         </div>
 
-        {/* 3-panel layout — desktop */}
-        <div className="hidden md:grid gap-5" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-          <InputPanel onParse={setModel} />
-          <PreviewPanel model={model} onCellChange={updateCell} />
+        {/* Desktop layout: Input+Preview top row, LaTeX full width bottom */}
+        <div className="hidden md:flex md:flex-col gap-5">
+          <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <InputPanel onParse={setModel} />
+            <PreviewPanel model={model} options={options} onCellChange={updateCell} />
+          </div>
           <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />
         </div>
 
         {/* Mobile: single panel by tab */}
         <div className="md:hidden">
           {activeTab === 'input' && <InputPanel onParse={setModel} />}
-          {activeTab === 'preview' && <PreviewPanel model={model} onCellChange={updateCell} />}
+          {activeTab === 'preview' && <PreviewPanel model={model} options={options} onCellChange={updateCell} />}
           {activeTab === 'latex' && <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />}
         </div>
 
@@ -308,7 +310,7 @@ function LaTeXPanel({
       <textarea
         readOnly
         className="w-full font-mono text-sm resize-none"
-        rows={12}
+        rows={8}
         value={latex}
         style={{
           background: '#F9F9FF',
@@ -321,7 +323,7 @@ function LaTeXPanel({
           cursor: 'default',
         }}
       />
-      <button className="btn-secondary w-full mt-1 text-sm" onClick={onCopy}>
+      <button className="btn-primary w-full mt-1 text-sm" onClick={onCopy}>
         {copied ? 'Copied!' : 'Copy LaTeX'}
       </button>
     </div>

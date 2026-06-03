@@ -1,11 +1,67 @@
 import { useState } from 'react'
+import type { TableModel } from './lib/table/types'
+
+function makeId(): string {
+  return crypto.randomUUID()
+}
+
+const DUMMY_MODEL: TableModel = {
+  title: 'Classification Results on Test Set',
+  label: 'tab:results',
+  environment: 'table*',
+  columns: ['Method', 'Accuracy', 'Precision', 'F1'],
+  rows: [
+    {
+      id: makeId(),
+      rowType: 'header',
+      separatorBottom: true,
+      cells: [
+        { id: makeId(), value: 'Method', bold: true },
+        { id: makeId(), value: 'Accuracy', bold: true, align: 'center' },
+        { id: makeId(), value: 'Precision', bold: true, align: 'center' },
+        { id: makeId(), value: 'F1', bold: true, align: 'center' },
+      ],
+    },
+    {
+      id: makeId(),
+      rowType: 'normal',
+      cells: [
+        { id: makeId(), value: 'Ours' },
+        { id: makeId(), value: '0.924', align: 'center' },
+        { id: makeId(), value: '0.918', align: 'center' },
+        { id: makeId(), value: '0.911', align: 'center' },
+      ],
+    },
+    {
+      id: makeId(),
+      rowType: 'normal',
+      cells: [
+        { id: makeId(), value: 'BERT' },
+        { id: makeId(), value: '0.901', align: 'center' },
+        { id: makeId(), value: '0.895', align: 'center' },
+        { id: makeId(), value: '0.887', align: 'center' },
+      ],
+    },
+    {
+      id: makeId(),
+      rowType: 'summary',
+      separatorTop: true,
+      cells: [
+        { id: makeId(), value: 'Baseline', italic: true },
+        { id: makeId(), value: '0.872', align: 'center' },
+        { id: makeId(), value: '0.864', align: 'center' },
+        { id: makeId(), value: '0.859', align: 'center' },
+      ],
+    },
+  ],
+}
 
 function App() {
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<'input' | 'preview' | 'latex'>('input')
+  const [model] = useState<TableModel>(DUMMY_MODEL)
 
   function handleCopyLatex() {
-    // Placeholder — will copy LaTeX in later PR
     navigator.clipboard.writeText('% LaTeX output will appear here').then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
@@ -30,16 +86,10 @@ function App() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              className="btn-secondary text-sm"
-              onClick={() => {}}
-            >
+            <button className="btn-secondary text-sm" onClick={() => {}}>
               Load Example
             </button>
-            <button
-              className="btn-primary text-sm"
-              onClick={handleCopyLatex}
-            >
+            <button className="btn-primary text-sm" onClick={handleCopyLatex}>
               {copied ? 'Copied!' : 'Copy LaTeX'}
             </button>
           </div>
@@ -48,7 +98,7 @@ function App() {
 
       {/* Main */}
       <main className="mx-auto px-5 py-8" style={{ maxWidth: '960px' }}>
-        {/* Mobile tab switcher — visible only on small screens */}
+        {/* Mobile tab switcher */}
         <div className="flex gap-1 mb-4 md:hidden" style={{ background: 'var(--border)', borderRadius: 'var(--rs)', padding: '3px' }}>
           {(['input', 'preview', 'latex'] as const).map((tab) => (
             <button
@@ -69,17 +119,17 @@ function App() {
           ))}
         </div>
 
-        {/* 3-panel layout */}
+        {/* 3-panel layout — desktop */}
         <div className="hidden md:grid gap-5" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <InputPanel />
-          <PreviewPanel />
+          <PreviewPanel model={model} />
           <LaTeXPanel />
         </div>
 
         {/* Mobile: single panel by tab */}
         <div className="md:hidden">
           {activeTab === 'input' && <InputPanel />}
-          {activeTab === 'preview' && <PreviewPanel />}
+          {activeTab === 'preview' && <PreviewPanel model={model} />}
           {activeTab === 'latex' && <LaTeXPanel />}
         </div>
       </main>
@@ -126,7 +176,6 @@ function InputPanel() {
   return (
     <div className="card">
       <PanelHeader num="1" title="Input" />
-      {/* Input mode tabs */}
       <div
         className="flex gap-1 mb-3"
         style={{ background: 'var(--bg)', borderRadius: 'var(--rx)', padding: '3px' }}
@@ -180,24 +229,61 @@ function InputPanel() {
   )
 }
 
-function PreviewPanel() {
+function PreviewPanel({ model }: { model: TableModel }) {
+  const visibleRows = model.rows.filter((r) => !r.cells.every((c) => c.hidden))
+
   return (
     <div className="card">
       <PanelHeader num="2" title="Preview" />
-      <div
-        className="flex items-center justify-center text-sm"
-        style={{
-          minHeight: '240px',
-          border: '1.5px dashed var(--border)',
-          borderRadius: 'var(--rs)',
-          color: 'var(--text-light)',
-        }}
-      >
-        Table preview will appear here
+
+      {model.title && (
+        <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-sub)' }}>
+          {model.title}
+        </p>
+      )}
+
+      <div className="overflow-x-auto">
+        <table
+          className="w-full text-sm"
+          style={{ borderCollapse: 'collapse', fontFamily: 'inherit' }}
+        >
+          <tbody>
+            {visibleRows.map((row) => {
+              const visibleCells = row.cells.filter((c) => !c.hidden)
+              return (
+                <tr key={row.id}>
+                  {visibleCells.map((cell) => {
+                    const Tag = row.rowType === 'header' ? 'th' : 'td'
+                    return (
+                      <Tag
+                        key={cell.id}
+                        style={{
+                          padding: '0.4rem 0.75rem',
+                          textAlign: cell.align ?? (row.rowType === 'header' ? 'center' : 'left'),
+                          fontWeight: cell.bold ? 700 : row.rowType === 'header' ? 600 : 400,
+                          fontStyle: cell.italic ? 'italic' : 'normal',
+                          borderTop: row.separatorTop ? '1px solid var(--text)' : undefined,
+                          borderBottom: row.separatorBottom ? '1px solid var(--text)' : undefined,
+                          color: 'var(--text)',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {cell.value}
+                      </Tag>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
-      <p className="text-xs text-center mt-2" style={{ color: 'var(--text-light)' }}>
-        Paste and parse input to see preview
-      </p>
+
+      {model.label && (
+        <p className="text-xs mt-2" style={{ color: 'var(--text-light)' }}>
+          \label{'{' + model.label + '}'}
+        </p>
+      )}
     </div>
   )
 }

@@ -361,7 +361,7 @@ function App() {
         <FormattingBar options={options} onChange={setOptions} />
 
         {/* Desktop layout: changes based on inputMode */}
-        <div className="hidden md:flex md:flex-col gap-5">
+        <div className="hidden md:flex md:flex-col gap-5 mt-5">
           {inputMode === 'paste' ? (
             /* Paste: side-by-side Input + Preview */
             <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>

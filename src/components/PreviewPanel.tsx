@@ -111,7 +111,7 @@ export function PreviewPanel({
   }
 
   return (
-    <div className="card" style={{ padding: 0 }}>
+    <div className="card" style={{ padding: 0, minWidth: 0 }}>
       {/* Sticky header — stays visible while scrolling table */}
       <div
         style={{
@@ -140,8 +140,8 @@ export function PreviewPanel({
         <div style={{ padding: '1.25rem 1.5rem' }}><EmptyState /></div>
       ) : (
         <div style={{ padding: '0.75rem 1.5rem 1.25rem' }}>
-          {/* tableContainerRef measures available width for zoom calculation */}
-          <div ref={tableContainerRef}>
+          {/* tableContainerRef measures available width — overflow:hidden prevents it expanding with table content */}
+          <div ref={tableContainerRef} style={{ overflow: 'hidden' }}>
             {/* zoomTargetRef: zoom CSS property is applied here */}
             <div ref={zoomTargetRef}>
               {model.title && (

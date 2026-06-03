@@ -15,7 +15,10 @@ import {
   addColumnRight,
   deleteColumn,
   createEmptyTable,
+  updateCellStyle,
+  getCellsInRect,
 } from './lib/table/editor'
+import type { StylePatch, CellAnchor } from './lib/table/editor'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -80,7 +83,45 @@ function App() {
   const [exampleIdx, setExampleIdx] = useState(0)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [viewMode, setViewMode] = useState<'preview' | 'edit'>('preview')
+  const [selectedCellIds, setSelectedCellIds] = useState<Set<string>>(new Set())
+  const [anchorCell, setAnchorCell] = useState<CellAnchor | null>(null)
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
+
+  const selectedCells = useMemo(
+    () => model.rows.flatMap((row) => row.cells.filter((c) => selectedCellIds.has(c.id))),
+    [model, selectedCellIds]
+  )
+
+  function handleCellSelect(cellId: string, rowIdx: number, colIdx: number, isShift: boolean) {
+    if (!isShift || !anchorCell) {
+      setAnchorCell({ cellId, rowIdx, colIdx })
+      setSelectedCellIds(new Set([cellId]))
+    } else {
+      const ids = getCellsInRect(model, anchorCell, rowIdx, colIdx)
+      setSelectedCellIds(new Set(ids))
+    }
+  }
+
+  function handleStyleChange(patch: StylePatch) {
+    if (selectedCellIds.size === 0) return
+    setModel((prev) => updateCellStyle(prev, selectedCellIds, patch))
+  }
+
+  function handleClearFormatting() {
+    if (selectedCellIds.size === 0) return
+    setModel((prev) => updateCellStyle(prev, selectedCellIds, {
+      bold: undefined,
+      italic: undefined,
+      underline: undefined,
+      backgroundColor: undefined,
+      // align is intentionally NOT cleared
+    }))
+  }
+
+  function clearSelection() {
+    setSelectedCellIds(new Set())
+    setAnchorCell(null)
+  }
 
   function handleLoadExample() {
     const example = EXAMPLES[exampleIdx % EXAMPLES.length]!
@@ -90,6 +131,7 @@ function App() {
       setModel(parsed)
     }
     setExampleIdx((i) => i + 1)
+    clearSelection()
   }
 
   function updateCell(rowId: string, cellId: string, value: string) {
@@ -122,6 +164,7 @@ function App() {
     setModel(createEmptyTable(rows, cols))
     setViewMode('edit')
     setShowCreateDialog(false)
+    clearSelection()
   }
 
   function handleCopyLatex() {
@@ -203,6 +246,9 @@ function App() {
               viewMode={viewMode}
               onViewModeChange={setViewMode}
               onCellChange={updateCell}
+              onCellSelect={handleCellSelect}
+              onStyleChange={handleStyleChange}
+              onClearFormatting={handleClearFormatting}
               onAddRowAbove={handleAddRowAbove}
               onAddRowBelow={handleAddRowBelow}
               onDeleteRow={handleDeleteRow}
@@ -210,6 +256,8 @@ function App() {
               onAddColumnRight={handleAddColumnRight}
               onDeleteColumn={handleDeleteColumn}
               onRowBorderChange={handleRowBorderChange}
+              selectedCellIds={selectedCellIds}
+              selectedCells={selectedCells}
             />
           </div>
           <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />
@@ -225,6 +273,9 @@ function App() {
               viewMode={viewMode}
               onViewModeChange={setViewMode}
               onCellChange={updateCell}
+              onCellSelect={handleCellSelect}
+              onStyleChange={handleStyleChange}
+              onClearFormatting={handleClearFormatting}
               onAddRowAbove={handleAddRowAbove}
               onAddRowBelow={handleAddRowBelow}
               onDeleteRow={handleDeleteRow}
@@ -232,6 +283,8 @@ function App() {
               onAddColumnRight={handleAddColumnRight}
               onDeleteColumn={handleDeleteColumn}
               onRowBorderChange={handleRowBorderChange}
+              selectedCellIds={selectedCellIds}
+              selectedCells={selectedCells}
             />
           )}
           {activeTab === 'latex' && <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />}

@@ -3,6 +3,19 @@ import type { TableModel, TableRow, BorderStyle } from '../lib/table/types'
 import type { FormattingOptions } from '../lib/table/formatters/options'
 import { formatValue } from '../lib/table/formatters/shared/formatValue'
 import { TableEditorToolbar } from './TableEditorToolbar'
+import type { StylePatch } from '../lib/table/editor/updateCellStyle'
+
+// Maps xcolor notation to CSS for Preview display
+function bgToCss(bg: string): string {
+  const map: Record<string, string> = {
+    'gray!20': 'rgba(120,120,120,0.25)',
+    'green!20': 'rgba(0,160,0,0.25)',
+    'blue!15': 'rgba(30,100,255,0.2)',
+    'yellow!20': 'rgba(220,180,0,0.3)',
+    'red!15': 'rgba(220,50,50,0.22)',
+  }
+  return map[bg] ?? bg
+}
 
 type EditHandlers = {
   onCellChange: (rowId: string, cellId: string, value: string) => void
@@ -13,6 +26,9 @@ type EditHandlers = {
   onAddColumnRight: (colIdx: number) => void
   onDeleteColumn: (colIdx: number) => void
   onRowBorderChange: (rowId: string, border: BorderStyle) => void
+  onCellSelect: (cellId: string, rowIdx: number, colIdx: number, isShift: boolean) => void
+  onStyleChange: (patch: StylePatch) => void
+  onClearFormatting: () => void
 }
 
 type Props = EditHandlers & {
@@ -20,6 +36,8 @@ type Props = EditHandlers & {
   options: FormattingOptions
   viewMode: 'preview' | 'edit'
   onViewModeChange: (mode: 'preview' | 'edit') => void
+  selectedCellIds: Set<string>
+  selectedCells: import('../lib/table/types').TableCell[]
 }
 
 const MIN_ZOOM = 0.45
@@ -30,6 +48,9 @@ export function PreviewPanel({
   viewMode,
   onViewModeChange,
   onCellChange,
+  onCellSelect,
+  onStyleChange,
+  onClearFormatting,
   onAddRowAbove,
   onAddRowBelow,
   onDeleteRow,
@@ -37,6 +58,8 @@ export function PreviewPanel({
   onAddColumnRight,
   onDeleteColumn,
   onRowBorderChange,
+  selectedCellIds,
+  selectedCells,
 }: Props) {
   const visibleRows = model.rows.filter((r) => !r.cells.every((c) => c.hidden))
   const visibleColCount = visibleRows[0]?.cells.filter((c) => !c.hidden).length ?? 0
@@ -132,6 +155,9 @@ export function PreviewPanel({
             onDeleteLastRow={handleDeleteLastRow}
             onAddColumn={() => onAddColumnRight(visibleColCount - 1)}
             onDeleteLastColumn={handleDeleteLastColumn}
+            selectedCells={selectedCells}
+            onStyleChange={onStyleChange}
+            onClearFormatting={onClearFormatting}
           />
         )}
       </div>
@@ -220,11 +246,14 @@ export function PreviewPanel({
                       <DataRow
                         key={row.id}
                         row={row}
+                        modelRowIdx={model.rows.findIndex((r) => r.id === row.id)}
                         isFirst={rowIdx === 0}
                         isLast={rowIdx === visibleRows.length - 1}
                         viewMode={viewMode}
                         options={options}
+                        selectedCellIds={selectedCellIds}
                         onCellChange={onCellChange}
+                        onCellSelect={onCellSelect}
                         onAddRowAbove={() => onAddRowAbove(row.id)}
                         onAddRowBelow={() => onAddRowBelow(row.id)}
                         onDeleteRow={() => onDeleteRow(row.id)}
@@ -324,11 +353,14 @@ export function PreviewPanel({
 
 type DataRowProps = {
   row: TableRow
+  modelRowIdx: number
   isFirst: boolean
   isLast: boolean
   viewMode: 'preview' | 'edit'
   options: FormattingOptions
+  selectedCellIds: Set<string>
   onCellChange: (rowId: string, cellId: string, value: string) => void
+  onCellSelect: (cellId: string, rowIdx: number, colIdx: number, isShift: boolean) => void
   onAddRowAbove: () => void
   onAddRowBelow: () => void
   onDeleteRow: () => void
@@ -337,11 +369,14 @@ type DataRowProps = {
 
 function DataRow({
   row,
+  modelRowIdx,
   isFirst,
   isLast,
   viewMode,
   options,
+  selectedCellIds,
   onCellChange,
+  onCellSelect,
   onAddRowAbove,
   onAddRowBelow,
   onDeleteRow,
@@ -440,17 +475,27 @@ function DataRow({
       )}
 
       {/* Data cells */}
-      {visibleCells.map((cell) => {
+      {visibleCells.map((cell, visibleColIdx) => {
         const Tag = row.rowType === 'header' ? 'th' : 'td'
         const displayValue =
           row.rowType === 'header' ? cell.value : formatValue(cell.value, options)
         const isEditable = viewMode === 'edit'
+        const isSelected = isEditable && selectedCellIds.has(cell.id)
+        // Use visible index as model col index (hidden cells not yet implemented)
+        const modelColIdx = row.cells.findIndex((c) => c.id === cell.id)
+        const baseBg = cell.backgroundColor ? bgToCss(cell.backgroundColor) : 'transparent'
 
         return (
           <Tag
             key={cell.id}
             contentEditable={isEditable ? 'plaintext-only' : undefined}
             suppressContentEditableWarning
+            onMouseDown={(e) => {
+              if (!isEditable) return
+              // shift+click: prevent focus steal (range selection only)
+              if (e.shiftKey) e.preventDefault()
+              onCellSelect(cell.id, modelRowIdx, modelColIdx, e.shiftKey)
+            }}
             onBlur={
               isEditable
                 ? (e) => {
@@ -466,28 +511,32 @@ function DataRow({
               textAlign: cell.align ?? 'left',
               fontWeight: cell.bold ? 700 : row.rowType === 'header' ? 600 : 400,
               fontStyle: cell.italic ? 'italic' : 'normal',
+              textDecoration: cell.underline ? 'underline' : 'none',
               borderTop,
               borderBottom,
               color: 'var(--text)',
               whiteSpace: 'nowrap',
-              outline: 'none',
+              outline: isSelected ? '2px solid var(--accent)' : 'none',
+              outlineOffset: '-2px',
               cursor: isEditable ? 'text' : 'default',
               transition: 'background .1s',
+              backgroundColor: baseBg,
             }}
             onFocus={
               isEditable
-                ? (e) => { e.currentTarget.style.background = 'var(--accent-light)' }
+                ? (e) => { e.currentTarget.style.backgroundColor = 'var(--accent-light)' }
                 : undefined
             }
             onBlurCapture={
               isEditable
-                ? (e) => { e.currentTarget.style.background = 'transparent' }
+                ? (e) => { e.currentTarget.style.backgroundColor = baseBg }
                 : undefined
             }
           >
             {displayValue}
           </Tag>
         )
+        void visibleColIdx  // suppress unused warning
       })}
     </tr>
   )

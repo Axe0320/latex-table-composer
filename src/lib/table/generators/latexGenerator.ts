@@ -98,8 +98,11 @@ function buildRow(row: TableRow, opts: FormattingOptions): string {
   const cells = visibleCells.map((cell) => {
     const raw = row.rowType === 'header' ? cell.value : formatValue(cell.value, opts)
     let value = latexEscape(raw)
+    // Nesting order (innermost first): bold → italic → underline → cellcolor
     if (cell.bold) value = `\\textbf{${value}}`
     if (cell.italic) value = `\\textit{${value}}`
+    if (cell.underline) value = `\\underline{${value}}`
+    if (cell.backgroundColor) value = `\\cellcolor{${cell.backgroundColor}}${value}`
     return value
   })
   return cells.join(' & ') + ' \\\\'

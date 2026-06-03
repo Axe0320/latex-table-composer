@@ -3,8 +3,10 @@ export type TableCell = {
   value: string
   bold?: boolean
   italic?: boolean
+  underline?: boolean
   hidden?: boolean
   align?: 'left' | 'center' | 'right'
+  backgroundColor?: string
 }
 
 export type BorderStyle = 'none' | 'hline' | 'midrule'

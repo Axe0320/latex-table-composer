@@ -124,7 +124,7 @@ function UploadContent({ onUpload }: { onUpload: (file: File) => Promise<void> }
       onDrop={async (e) => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files[0]; if (f) await handle(f) }}
       onClick={() => fileRef.current?.click()}
       style={{
-        minHeight: '220px', cursor: 'pointer', padding: '2rem 1.5rem',
+        minHeight: '120px', cursor: 'pointer', padding: '1.25rem 1.5rem',
         border: `1.5px dashed ${isDragging ? 'var(--accent)' : 'var(--border)'}`,
         borderRadius: 'var(--rs)',
         background: isDragging ? 'var(--accent-light)' : 'var(--bg)',
@@ -132,7 +132,7 @@ function UploadContent({ onUpload }: { onUpload: (file: File) => Promise<void> }
         justifyContent: 'center', gap: '0.875rem', transition: 'all .15s',
       }}
     >
-      <span style={{ fontSize: '2rem' }}>📂</span>
+      <span style={{ fontSize: '1.5rem' }}>📂</span>
       <p className="text-sm font-semibold" style={{ color: isDragging ? 'var(--accent)' : 'var(--text-sub)', margin: 0 }}>
         {isLoading ? '読み込み中...' : isDragging ? 'ここにドロップ' : 'ファイルをドロップ、または'}
       </p>

@@ -638,6 +638,7 @@ function DataRow({
               hasNoteMarkers && showNoteTriangle ? 'cell-note-triangle' : '',
             ].filter(Boolean).join(' ') || undefined}
             data-markers={hasNoteMarkers ? cell.noteMarkers!.join(',') : undefined}
+            title={hasNoteMarkers ? `注釈: ${cell.noteMarkers!.join(', ')}` : undefined}
             contentEditable={isEditable ? 'plaintext-only' : undefined}
             suppressContentEditableWarning
             onMouseDown={(e) => {

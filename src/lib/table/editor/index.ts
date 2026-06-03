@@ -1,0 +1,5 @@
+export { addRowAbove, addRowBelow } from './addRow'
+export { deleteRow } from './deleteRow'
+export { addColumnLeft, addColumnRight } from './addColumn'
+export { deleteColumn } from './deleteColumn'
+export { createEmptyTable } from './createTable'

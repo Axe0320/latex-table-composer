@@ -190,13 +190,16 @@ export function PreviewPanel({
                                 >
                                   ✕
                                 </EBtn>
-                                <EBtn
-                                  title="右に列を追加"
-                                  onMouseDown={(e) => e.preventDefault()}
-                                  onClick={() => onAddColumnRight(colIdx)}
-                                >
-                                  ＋→
-                                </EBtn>
+                                {/* Hide +→ on last column — right-side dashed button serves this role */}
+                                {colIdx < visibleColCount - 1 && (
+                                  <EBtn
+                                    title="右に列を追加"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => onAddColumnRight(colIdx)}
+                                  >
+                                    ＋→
+                                  </EBtn>
+                                )}
                               </div>
                             </td>
                           ))}

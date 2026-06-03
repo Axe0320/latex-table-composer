@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { TableModel, TableRow, BorderStyle } from '../lib/table/types'
 import type { FormattingOptions } from '../lib/table/formatters/options'
 import { formatValue } from '../lib/table/formatters/shared/formatValue'
@@ -54,12 +54,26 @@ export function PreviewPanel({
   // Scroll overflow container to right end when columns increase in Edit mode
   const overflowRef = useRef<HTMLDivElement>(null)
   const prevColCountRef = useRef(visibleColCount)
+  // Track whether table overflows horizontally (for scroll indicator)
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false)
+
   useEffect(() => {
     if (viewMode === 'edit' && visibleColCount > prevColCountRef.current) {
-      const el = overflowRef.current
-      if (el) el.scrollLeft = el.scrollWidth
+      // requestAnimationFrame ensures DOM layout is fully computed before scrolling
+      requestAnimationFrame(() => {
+        const el = overflowRef.current
+        if (el) el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' })
+      })
     }
     prevColCountRef.current = visibleColCount
+  }, [visibleColCount, viewMode])
+
+  // Update overflow indicator whenever column count or viewMode changes
+  useEffect(() => {
+    const el = overflowRef.current
+    if (!el) return
+    const check = () => setHasHorizontalOverflow(el.scrollWidth > el.clientWidth)
+    requestAnimationFrame(check)
   }, [visibleColCount, viewMode])
 
   // Check whether a column has any non-empty content
@@ -121,7 +135,23 @@ export function PreviewPanel({
           )}
 
           <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'stretch' }}>
-            <div ref={overflowRef} style={{ flex: 1, overflowX: 'auto', minWidth: 0 }}>
+            {/* Scroll indicator wrapper */}
+            <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+              {hasHorizontalOverflow && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    width: '40px',
+                    background: 'linear-gradient(to right, transparent, rgba(248,250,252,0.9))',
+                    pointerEvents: 'none',
+                    zIndex: 1,
+                  }}
+                />
+              )}
+            <div ref={overflowRef} style={{ overflowX: 'auto', width: '100%' }}>
             <table
               style={{
                 borderCollapse: 'collapse',
@@ -194,6 +224,7 @@ export function PreviewPanel({
               </tbody>
             </table>
             </div>{/* /overflowX */}
+            </div>{/* /scroll indicator wrapper */}
 
             {/* Right-side add-column button — Edit mode only */}
             {viewMode === 'edit' && (

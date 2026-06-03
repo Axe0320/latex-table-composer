@@ -796,7 +796,7 @@ card-based
 
 ---
 
-# 13. 画面構成（固定）
+# 13. 画面構成
 
 基本レイアウト：
 
@@ -804,35 +804,37 @@ card-based
 ┌──────────────────────────────┐
 │ Header                       │
 ├──────────────────────────────┤
-│ Input | Preview | LaTeX      │
+│ 出力設定（FormattingBar）     │
+├──────────────────────────────┤
+│ Input        │ Preview       │
+├──────────────────────────────┤
+│ LaTeX（全幅）                 │
 └──────────────────────────────┘
 ```
-
-3パネル構成を基本とする。
 
 ---
 
 ## Desktop Layout
 
-横幅十分：
-
 ```txt
-┌────────┬────────┬────────┐
-│ Input  │Preview │ LaTeX  │
-└────────┴────────┴────────┘
+┌──────────────────────────────┐
+│ 出力設定                      │
+├───────────────┬──────────────┤
+│    Input      │   Preview    │
+├───────────────┴──────────────┤
+│         LaTeX（全幅）         │
+└──────────────────────────────┘
 ```
+
+上段：Input / Preview を 1fr 1fr で横並び。
+
+下段：LaTeX パネルを全幅で配置。
 
 ---
 
 ## Mobile / Narrow Width
 
-responsive：
-
-```txt
-Tabs
-```
-
-へ切替。
+responsive：タブ切替。
 
 ```txt
 Input
@@ -859,7 +861,7 @@ LaTeX Table Composer
 ### Subtitle
 
 ```txt
-Academic Table Generator for Research Papers
+表データを論文向け LaTeX に変換・整形するツール
 ```
 
 ---
@@ -888,509 +890,231 @@ toast 表示。
 Load Example
 ```
 
-を配置。
-
-デモ・動作確認用途。
+クリックするたびに4種類のサンプルをサイクルで切り替える。
 
 ---
 
-# 15. Input Panel（固定）
+# 15. Input Panel
 
-Input は：
-
-> **複数入力方式**
-
-を提供する。
+Input は複数入力方式を提供する。
 
 ---
 
 ## Input Modes
 
-最低限：
-
 ```txt
-1. Paste Table
-2. CSV Upload
-3. Manual Edit
+1. Paste Table（実装済み）
+2. CSV Upload（将来）
+3. Manual Edit（将来）
 ```
 
 ---
 
-### 1. Paste Table
+### 1. Paste Table（実装済み）
 
-対象：
+textarea に貼り付け後、**Parse Table** ボタンで自動検出・変換。
 
-* Excel
-* PowerPoint
-* Google Sheets
-* TSV
-
-形式：
+対応フォーマット（自動検出、優先順）：
 
 ```txt
-A<TAB>B<TAB>C
-1<TAB>2<TAB>3
+1. TSV       — タブ文字を含む（Excel・Google Sheets コピペ）
+2. classification-report — sklearn classification_report() テキスト出力
+3. log       — "Key: 数値" 形式が3行以上
+4. CSV       — カンマ区切り
 ```
 
-を parser。
-
-textarea 入力。
+textarea は縦横スクロール対応（`wrap="off"`、固定高さ）。
 
 ---
 
-### 2. CSV Upload
+### 2. CSV Upload（将来）
 
-対応：
-
-```txt
-.csv
-.tsv
-.txt
-```
-
-アップロード後：
-
-自動 parse。
+`.csv` / `.tsv` / `.txt` ファイルのアップロード対応。
 
 ---
 
-### 3. Manual Edit
+### 3. Manual Edit（将来）
 
-空表から作成。
-
-初期値：
-
-```txt
-3 columns
-3 rows
-```
-
-論文向け default。
+空表から作成。初期値：3列 × 3行。
 
 ---
 
-## Advanced Input（MVP後半）
-
-対応：
+## Advanced Input（実装済み）
 
 ### sklearn classification report
 
-例：
+sklearn `classification_report()` のテキスト出力を検出・パース。
 
 ```txt
-precision
-recall
-f1-score
-support
+              precision    recall  f1-score   support
+
+           0       0.85      0.88      0.86        50
+    accuracy                           0.88       153
+   macro avg       0.84      0.83      0.83       153
 ```
 
-を検出。
+出力列：Class / Precision / Recall / F1-Score / Support
 
-自動整形。
+`accuracy` 行は Precision・Recall が空セル（欠損値表示）として処理される。
 
 ---
 
 ### log parser
 
-例：
+`Key: 値` 形式のログを縦表（Metric / Value）に変換。
 
 ```txt
-Accuracy:
-Precision:
-Recall:
-F1:
-```
-
-を抽出。
-
-研究ログ対応。
-
-experimental 扱い。
-
----
-
-# 16. Table Editing（重要）
-
-本ツールの中心機能。
-
-目的：
-
-> **LaTeXを書かずに表編集**
-
-。
-
----
-
-## 編集方式
-
-### セル直接編集
-
-Preview 上で：
-
-> inline editing
-
-可能にする。
-
-Excel風。
-
-ただし：
-
-> spreadsheet 化は禁止。
-
-必要最小限。
-
----
-
-## Row Operations
-
-行単位：
-
-```txt
-+ Add Row
-Delete Row
-Move Up
-Move Down
+Accuracy: 0.9243
+Precision: 0.9182
+F1 Score: 0.9112
 ```
 
 ---
 
-## Column Operations
+# 16. Table Editing
 
-列単位：
-
-```txt
-+ Add Column
-Delete Column
-Rename Column
-Move Left
-Move Right
-```
+本ツールの中心機能。目的：**LaTeX を書かずに表編集**。
 
 ---
 
-## Hide / Show
+## セル直接編集（実装済み）
 
-重要：
+Preview 上でセルをクリックするとインライン編集が可能。
 
-CSV 全部を使わない用途。
-
-各：
-
-```txt
-row
-column
-cell
-```
-
-に：
-
-```txt
-show / hide
-```
-
-を持つ。
-
-LaTeX 出力から除外。
+- フォーカス中: accent 色（薄紫）でハイライト
+- フォーカス外れ時: モデルに即反映 → LaTeX も即更新
 
 ---
 
-## Style Editing
+## Row / Column Operations（将来）
 
-セルごと：
+行単位：Add Row / Delete Row / Move Up / Move Down
 
-### Bold
-
-```txt
-Bold
-```
-
-↓
-
-```latex
-\textbf{}
-```
-
-化。
+列単位：Add Column / Delete Column / Rename Column / Move Left / Move Right
 
 ---
 
-### Italic
+## Hide / Show（将来）
 
-```txt
-Italic
-```
-
-↓
-
-```latex
-\textit{}
-```
-
-化。
+各 row・column・cell に show / hide を持つ。LaTeX 出力から除外。
 
 ---
 
-### Alignment
+## Style Editing（モデル対応済み、UI は将来）
 
-選択：
-
-```txt
-left
-center
-right
-```
+- Bold → `\textbf{}`
+- Italic → `\textit{}`
+- Alignment: left / center / right（normalize 時に列単位自動設定）
 
 ---
 
 ## Border Editing
 
-目的：
+出力設定（FormattingBar）の罫線スタイルで制御：
 
-> 論文向け minimal border
-
-。
-
-デフォルト：
-
-```txt
-横線のみ
-```
-
-。
-
-設定：
-
-### Header separator
-
-見出し後。
+- Academic（論文向け）
+- Full Grid（全罫線）
+- Minimal（上下のみ）
 
 ---
 
-### Summary separator
-
-合計前。
-
----
-
-### Custom separator
-
-任意位置。
-
----
-
-### Vertical border
-
-デフォルト：
-
-```txt
-OFF
-```
-
-。
-
-必要時のみ。
-
----
-
-# 17. Preview仕様（必須）
-
-重要：
+# 17. Preview仕様
 
 > **即時 Preview**
 
-。
-
-変更後：
-
-```txt
-< 300ms
-```
-
-以内更新目標。
+変更後 300ms 以内更新目標。
 
 ---
 
 ## Preview表示
 
-HTML Table。
+HTML Table。論文風スタイル（booktabs ライク）：
 
-目的：
-
-> 出力イメージ確認
-
-。
-
-見た目：
-
-```txt
-論文風
-```
-
-。
-
-最低限：
-
-* zebra 不要
-* clean border
-* academic spacing
+- 上端・下端：2px 太線
+- ヘッダー後区切り：1px
+- summary 行前区切り：1px
+- 縦線なし、zebra なし
 
 ---
 
 ## Preview Source
 
-禁止：
+TableModel から生成。preview 専用 state は持たない。
 
-```txt
-preview専用 state
-```
+---
 
-。
+## 出力設定の反映
 
-必ず：
+**出力設定（FormattingBar）の値が Preview にも反映される。**
 
-```txt
-TableModel
-```
+- データセルに `formatValue(cell.value, options)` を適用
+- ヘッダー行は formatting 対象外
 
-から生成。
+Preview と LaTeX 出力の値は一致する。
 
 ---
 
 ## Preview Features
 
-表示：
-
-### Caption
-
----
-
-### Label
+- Caption / Label 表示
+- Table body（bold / italic / alignment）
+- Hidden items 除外
+- セルのインライン編集
 
 ---
 
-### Table body
+# 18. Formatting Controls
+
+論文向け微調整。**パネル上部（Input・Preview の上）に配置。**
 
 ---
 
-### Alignment
-
----
-
-### Bold / Italic
-
----
-
-### Hidden items exclusion
-
----
-
-# 18. Formatting Controls（重要）
-
-論文向け微調整。
-
----
-
-## Decimal Precision
-
-設定：
+## 出力環境
 
 ```txt
-Auto
-0
-1
-2
-3
-4
-```
-
-例：
-
-```txt
-0.57142857
-```
-
-↓
-
-```txt
-0.5714
+table*（初期値・2段組向け）
+table（1段組）
 ```
 
 ---
 
-## Missing Value Handling
-
-設定：
+## 小数点桁数
 
 ```txt
+Auto（小数点を含む値を4桁に丸め、整数はそのまま）
+0 〜 4
+```
+
+例：`0.57142857` → Auto → `0.5714`
+
 ---
+
+## 欠損値
+
+空セルの表示形式：
+
+```txt
+---（初期値）
 N/A
 -
-blank
+blank（空文字）
 ```
-
-論文向け。
 
 ---
 
-## Table Environment
-
-選択：
+## 罫線スタイル
 
 ```txt
-table
-table*
-```
-
-初期：
-
-```txt
-table*
-```
-
-論文向け。
-
----
-
-## Alignment Template
-
-テンプレ：
-
-```txt
-Academic Default
-Compact
-Wide
+Academic（初期値）— header後・summary前・上下
+Full Grid          — 全行間
+Minimal            — 上下のみ
 ```
 
 ---
 
-## Border Template
+## Alignment Template（将来）
 
-テンプレ：
-
-### Academic Default
-
-```txt
-top
-header
-summary
-bottom
-```
-
-のみ。
-
-推奨。
-
----
-
-### Full Grid
-
-全罫線。
-
----
-
-### Minimal
-
-上・下のみ。
+列揃えのテンプレート指定。現在は normalize 時に列単位で自動判定（数値列 → right）。
 
 ---
 
@@ -1403,8 +1127,12 @@ bottom
 \caption{}
 \label{}
 \begin{center}
-\begin{tabular}{}
-...
+\begin{tabular}{lrrr}
+\hline
+\textbf{Method} & \textbf{Acc} & ... \\
+\hline
+Ours & 0.9240 & ... \\
+\hline
 \end{tabular}
 \end{center}
 \end{table*}
@@ -1414,169 +1142,88 @@ bottom
 
 ## 出力ルール
 
-### Caption
-
-空でも許可。
-
----
-
-### Label
-
-推奨：
-
-```txt
-tab:xxxx
-```
-
-。
+- **Caption**: 空でも許可
+- **Label**: 推奨形式 `tab:xxxx`
+- **Alignment**: 最初のデータ行の `cell.align` から自動生成（l / c / r）
+- **Escape**: `& % $ # _ { } \` をエスケープ
+- **Bold**: `\textbf{}`、**Italic**: `\textit{}`
+- **Hidden 除外**: `cell.hidden` / 全セル hidden の行はスキップ
+- **環境切替**: `FormattingOptions.environment` で `table` / `table*` を切替
 
 ---
 
-### Alignment
+# 20. Example Dataset（実装済み）
 
-自動生成：
+Load Example ボタンで4種類をサイクル：
 
-例：
+### 1. Benchmark (TSV)
 
-```txt
-lcccc
-```
+メソッド比較表。列：Method / Accuracy / Precision / Recall / F1
 
-。
+### 2. Classification Report
 
----
+sklearn `classification_report()` 形式。3クラス + accuracy + macro avg + weighted avg。
 
-### Escape Rule
+### 3. Log Parser
 
-特殊文字：
+実験ログ形式。Accuracy / Precision / Recall / F1 Score / Loss / Val Accuracy / Val Loss。
 
-```txt
-&
-%
-$
-#
-_
-{
-}
-```
+### 4. Custom CSV
 
-は escape。
+CIFAR-10/100 ベンチマーク。列：Dataset / Model / Acc / F1 / Params。
 
 ---
 
-### Bold
-
-```latex
-\textbf{}
-```
-
-。
-
----
-
-### Italic
-
-```latex
-\textit{}
-```
-
-。
-
----
-
-## Academic Default Output
-
-デフォルト出力：
-
-```txt
-横線中心
-論文向け
-見出し＋合計のみ
-```
-
-。
-
-目的：
-
-> **提出可能品質のLaTeXを即出力**
-
-。
-
----
-
-# 20. Example Dataset（必須）
-
-最低限：
-
-### classification report sample
-
----
-
-### benchmark sample
-
----
-
-### log parser sample
-
----
-
-### custom csv sample
-
-を内蔵。
-
-理由：
-
-> 動作確認を容易化
-
-。
-
----
-
-# 21. MVP完成条件（固定）
+# 21. MVP完成条件
 
 以下を満たせば MVP 完了。
 
-### Input
+### Input（実装状況）
 
-* Paste
-* CSV Upload
-* Manual
+- ✅ Paste（TSV / CSV / classification-report / log 自動検出）
+- 🔲 CSV Upload（将来）
+- 🔲 Manual Edit（将来）
 
 ---
 
-### Edit
+### Edit（実装状況）
 
-* row/column add
-* hide/show
-* bold
-* separator
-* alignment
+- ✅ セルのインライン編集
+- 🔲 row / column add / delete（将来）
+- 🔲 hide / show（将来）
+- 🔲 bold / italic の UI 操作（将来。モデルは対応済み）
+- ✅ separator（罫線スタイルで制御）
+- ✅ alignment（normalize 時に自動設定）
 
 ---
 
 ### Preview
 
-* HTML Preview
+- ✅ HTML Preview（論文風スタイル）
+- ✅ 出力設定の値を Preview に反映
 
 ---
 
 ### Export
 
-* LaTeX copy
+- ✅ LaTeX Copy（Header ボタン / パネルボタン両方）
 
 ---
 
 ### Formatting
 
-* decimal control
-* missing value
+- ✅ decimal precision（Auto 含む）
+- ✅ missing value
+- ✅ border template
+- ✅ 出力環境（table / table*）
+- 🔲 alignment template（将来）
 
 ---
 
 ### UI
 
-* responsive minimum
-* academic usable
+- ✅ responsive minimum（mobile タブ切替）
+- ✅ academic usable
 
 ---
 
@@ -1589,20 +1236,11 @@ _
 ❌ history system
 ❌ AI auto correction
 
+---
 
 # 22. Claude Code 実装ルール（重要）
 
-本プロジェクトは：
-
-> **Claude Code による段階実装**
-
-を前提とする。
-
-そのため：
-
-> **暴走防止ルール**
-
-を固定する。
+本プロジェクトは Claude Code による段階実装を前提とする。
 
 ---
 
@@ -1610,390 +1248,106 @@ _
 
 ### 一度に大きく実装しない
 
-禁止：
-
-```txt id="m9gqvr"
-全部一括実装
+```txt
+小さく実装 → 確認 → commit → 次へ
 ```
-
-。
-
-必ず：
-
-```txt id="ydxvlv"
-小さく実装
-↓
-確認
-↓
-commit
-↓
-次へ
-```
-
-。
-
----
 
 ### 差分計画を先に出す
 
-Claude は：
-
-> **実装前に変更差分計画を提示すること**
-
-。
-
-例：
-
-```txt id="8eh3ur"
-変更予定：
-
-1. TableModel追加
-2. parser追加
-3. Preview追加
-
-変更ファイル：
-- src/lib/table/*
-- src/components/*
-- App.tsx（最小変更）
-```
-
-確認後に実装。
-
----
+実装前に変更差分計画を提示し、確認後に実装。
 
 ### 勝手な architecture 変更禁止
 
-禁止：
-
-```txt id="ybhl5f"
-勝手な directory 変更
-責務変更
-巨大 refactor
-state 管理変更
-```
-
-。
-
-仕様に従うこと。
-
----
+directory 変更・責務変更・巨大 refactor・state 管理変更は禁止。
 
 ### App.tsx の変更最小化
 
-原則：
-
-> **minimal diff**
-
-。
-
-禁止：
-
-```txt id="d9g3kt"
-全面 rewrite
-```
-
-。
-
----
+原則 minimal diff。全面 rewrite 禁止。
 
 ### shared 化の条件
 
-原則：
-
-> **2回以上使う場合のみ**
-
-。
-
-禁止：
-
-```txt id="o1ux1m"
-future proof utility
-premature abstraction
-```
-
-。
-
----
+2回以上使う場合のみ shared 化。premature abstraction 禁止。
 
 ### Working State 必須
 
-途中終了時でも：
-
-```txt id="jlwm8m"
-npm run dev
-```
-
-で動作可能状態を維持。
+途中終了時でも `npm run dev` で動作可能状態を維持。
 
 ---
 
-### Broken State 禁止
-
-禁止：
-
-```txt id="rnvclj"
-build error
-compile error
-placeholder implementation
-TODOで放置
-```
-
-。
-
-最低限：
-
-> runnable
-
-であること。
+# 23. 実装フェーズ（完了）
 
 ---
 
-# 23. 実装フェーズ（固定）
+## PR-1: Project Setup ✅
 
-本プロジェクトは：
-
-> **PR-like incremental development**
-
-で進める。
+Vite + TypeScript + Tailwind CSS による初期構築。UI skeleton 表示。
 
 ---
 
-## PR-1: Project Setup
+## PR-2: TableModel ✅
 
-目的：
-
-repository 初期構築。
-
-内容：
-
-```txt id="pclh5m"
-Vite
-TypeScript
-Tailwind
-shadcn/ui minimal
-```
-
-。
-
-完了条件：
-
-```txt id="5l79hn"
-npm run dev
-```
-
-成功。
-
-UI skeleton 表示。
+`src/lib/table/types.ts` に TableCell / TableRow / TableModel 定義。
+ID は `crypto.randomUUID()` で生成。
 
 ---
 
-## PR-2: TableModel
+## PR-3: Basic Parser ✅
 
-目的：
-
-Single Source of Truth 作成。
-
-内容：
-
-```txt id="8b0m0d"
-types.ts
-TableModel
-row/cell structure
-```
-
-。
-
-完了条件：
-
-dummy model render。
+`detect → parse → normalize → TableModel` パイプライン実装。
+TSV / CSV 対応。`parseInput(text): TableModel | null` エントリポイント。
 
 ---
 
-## PR-3: Basic Parser
+## PR-4: Normalize Layer ✅
 
-目的：
-
-入力系実装。
-
-対象：
-
-```txt id="sldl0d"
-CSV
-TSV
-Paste
-Manual
-```
-
-。
-
-完了条件：
-
-input → model 化成功。
+- 末尾の全空白列を除去
+- 列単位の数値判定（過半数が数値 → right align）
+- `cell.trim()` 適用
 
 ---
 
-## PR-4: Normalize Layer
+## PR-5: HTML Preview ✅
 
-目的：
-
-内部整形。
-
-内容：
-
-```txt id="ulhyz9"
-column count normalization
-empty cell handling
-number normalization
-```
-
-。
-
-完了条件：
-
-preview 安定。
+- booktabs ライクな論文風スタイル
+- `contentEditable` によるインライン編集
+- `PreviewPanel` を独立コンポーネント化
 
 ---
 
-## PR-5: HTML Preview
+## PR-6: LaTeX Generator ✅
 
-目的：
-
-見ながら編集。
-
-内容：
-
-```txt id="8s1h7g"
-table preview
-inline editing
-basic formatting
-```
-
-。
-
-完了条件：
-
-編集結果反映。
+- `latexEscape.ts`・`latexGenerator.ts` 実装
+- `useMemo` でリアルタイム生成
+- Copy LaTeX ボタン接続
 
 ---
 
-## PR-6: LaTeX Generator
+## PR-7: Formatting Controls ✅
 
-目的：
-
-コード出力。
-
-内容：
-
-```txt id="ckktza"
-table
-table*
-caption
-label
-tabular
-alignment
-```
-
-。
-
-完了条件：
-
-copyable latex。
+- `FormattingOptions` 型・`DEFAULT_OPTIONS`
+- `formatValue.ts`（decimal / missing value）
+- `FormattingBar` コンポーネント（日本語ラベル）
 
 ---
 
-## PR-7: Formatting Controls
+## PR-8: Advanced Parser ✅
 
-目的：
-
-研究用途向け調整。
-
-内容：
-
-```txt id="e20jlwm"
-decimal precision
-missing values
-separator control
-alignment
-```
-
-。
-
-完了条件：
-
-論文用途で利用可能。
+- `parseClassificationReport.ts`：sklearn テキスト形式対応
+- `parseLog.ts`：Key: value 形式対応
+- `detect.ts` に classification-report / log 判定追加
+- `src/lib/example/examples.ts`：4種サンプル
+- Load Example ボタン接続
 
 ---
 
-## PR-8: Advanced Parser
+## PR-9: UI Polish ✅
 
-目的：
-
-研究ログ対応。
-
-対象：
-
-### sklearn classification report
-
-CSV から：
-
-```txt id="jmfjhf"
-precision
-recall
-f1-score
-support
-```
-
-抽出。
-
----
-
-### benchmark report
-
-複数 CSV 統合。
-
----
-
-### log parser
-
-ログ：
-
-```txt id="hmrmq9"
-Accuracy
-Precision
-Recall
-F1
-```
-
-抽出。
-
-experimental。
-
----
-
-## PR-9: UI Polish
-
-目的：
-
-提出品質。
-
-内容：
-
-```txt id="mt0zbr"
-spacing
-responsive
-button hierarchy
-card cleanup
-```
-
-。
-
-禁止：
-
-```txt id="zt6rjb"
-大規模 redesign
-```
-
-。
+- Desktop 2段レイアウト（Input+Preview 上段、LaTeX 全幅下段）
+- Preview に `formatValue` 反映（Preview と LaTeX 出力が一致）
+- LaTeXPanel "Copy LaTeX" を primary ボタンに格上げ
+- FormattingBar をパネル上部に移動
+- Input textarea に横縦スクロール対応
+- Subtitle 日本語化
 
 ---
 
@@ -2001,72 +1355,11 @@ card cleanup
 
 ## main branch 直接変更禁止
 
-必須：
-
-```txt id="xpjdr9"
-feature/*
-```
-
-。
-
-例：
-
-```txt id="dn9k4u"
-feature/parser
-feature/preview
-feature/latex-generator
-```
-
-。
-
----
-
-## 実装手順
-
-固定：
-
-```txt id="1ws7xg"
-branch 作成
-↓
-差分計画
-↓
-実装
-↓
-npm run dev
-↓
-manual confirm
-↓
-push
-↓
-preview deploy
-```
-
-。
-
----
+必須：`feature/*` ブランチを作成。
 
 ## Commit Rule
 
-推奨：
-
-```txt id="0oc7zh"
-feat:
-fix:
-refactor:
-ui:
-parser:
-```
-
-prefix。
-
-例：
-
-```txt id="vwrvgn"
-feat(parser): add CSV parser
-ui(preview): improve table editor
-```
-
-。
+推奨 prefix：`feat:` / `fix:` / `refactor:` / `ui:` / `parser:`
 
 ---
 
@@ -2074,360 +1367,116 @@ ui(preview): improve table editor
 
 Vercel Preview を必須化。
 
-フロー：
-
-```txt id="kg6smm"
-push
-↓
-preview url
-↓
-manual confirm
-↓
-merge decision
+```txt
+push → preview url → manual confirm → merge decision
 ```
 
-。
-
-重要：
-
-> preview を見ず merge 禁止
-
-。
+preview を見ず merge 禁止。
 
 ---
 
 # 26. Error Handling
 
-エラー時：
+エラー時：落ちないことを優先。
 
-> 落ちないこと
-
-を優先。
-
----
-
-## CSV Parse Error
-
-表示：
-
-```txt id="h8mztz"
-CSV parsing failed
-Please check file format.
-```
-
-。
-
----
-
-## Invalid Table
-
-表示：
-
-```txt id="bdm4a7"
-Invalid table structure detected.
-```
-
-。
-
----
-
-## Empty Input
-
-許可。
-
-初期 table 表示。
+- 検出失敗: `Could not detect format. Please paste TSV or CSV.`
+- Invalid Table: `Invalid table structure detected.`
+- Empty Input: 許可（初期ダミーテーブル表示）
 
 ---
 
 # 27. Performance Target
 
-MVP 目標：
-
-### Preview update
-
-```txt id="1jq0g9"
-<300ms
-```
-
-。
-
----
-
-### CSV parse
-
-```txt id="5wllw3"
-<2sec
-```
-
-。
-
----
-
-### Table size
-
-最低：
-
-```txt id="d98rli"
-100 rows
-20 columns
-```
-
-対応。
+- Preview update: < 300ms
+- CSV parse: < 2sec
+- 対応サイズ: 100行 × 20列
 
 ---
 
 # 28. 将来統合戦略（重要）
 
-目的：
+将来的に `citation-bibtex-converter` へ transplant（移植）。
+repository merge は行わない。
 
-将来的に
+移植対象：
 
-```txt id="8o13ww"
-citation-bibtex-converter
-```
-
-へ統合。
-
----
-
-## 統合方法
-
-禁止：
-
-```txt id="st4a9o"
-repository merge
-```
-
-。
-
-必ず：
-
-> transplant（移植）
-
-。
-
-例：
-
-```txt id="nrz55q"
+```txt
 src/lib/table/
-components/TableComposer/
+components/PreviewPanel.tsx
+components/FormattingBar.tsx
 ```
 
-のみ移植。
-
----
-
-## 統合先想定
-
-将来：
-
-```txt id="5vf0pi"
-src/features/table/
-```
-
-化。
-
----
-
-## UI統合方針
-
-Citation ⇄ BibTeX Converter の：
-
-```txt id="8xyr8u"
-layout
-spacing
-button style
-card design
-```
-
-へ寄せる。
-
----
-
-## Dependency Policy
-
-禁止：
-
-```txt id="4bryud"
-repo固有依存
-tight coupling
-```
-
-。
-
-理由：
-
-移植容易化。
+統合先想定：`src/features/table/`
 
 ---
 
 # 29. Non-goals（重要）
 
-本プロジェクトは：
-
-以下を目指さない。
-
----
-
-### spreadsheet 完全再現
-
-Excel clone 化禁止。
-
----
-
-### WYSIWYG editor
-
-不要。
-
----
-
-### full Overleaf replacement
-
-不要。
-
----
-
-### collaborative editing
-
-不要。
-
----
-
-### AI auto formatting
-
-後回し。
-
----
-
-### citation manager 統合
-
-別プロジェクト。
+- spreadsheet 完全再現（Excel clone 化禁止）
+- WYSIWYG editor
+- full Overleaf replacement
+- collaborative editing
+- AI auto formatting（後回し）
+- citation manager 統合（別プロジェクト）
 
 ---
 
 # 30. Acceptance Criteria（完成条件）
 
-以下を満たせば：
-
-> MVP 完成
-
-とする。
-
----
+MVP 完成条件（現時点の実装状況）：
 
 ## Input
-
-以下対応：
-
-* Paste
-* CSV Upload
-* Manual Table
-
----
+- ✅ Paste（TSV / CSV / classification-report / log）
+- 🔲 CSV Upload
+- 🔲 Manual Table
 
 ## Edit
-
-以下可能：
-
-* add/remove row
-* add/remove column
-* hide/show
-* bold
-* italic
-* alignment
-* separator
-
----
+- ✅ インライン編集
+- 🔲 add/remove row/column
+- 🔲 hide/show
+- 🔲 bold/italic UI
+- ✅ separator（罫線スタイル）
+- ✅ alignment（自動）
 
 ## Preview
-
-以下表示：
-
-* HTML table
-* caption
-* label
-* hidden exclusion
-
----
+- ✅ HTML table（論文風）
+- ✅ formatting 反映
+- ✅ caption / label 表示
+- 🔲 hidden exclusion UI
 
 ## Export
-
-以下可能：
-
-```txt id="2jq0fx"
-Copy LaTeX
-```
-
-成功。
-
----
+- ✅ Copy LaTeX
 
 ## Formatting
-
-以下対応：
-
-* decimal precision
-* missing value style
-* border template
-* alignment template
-
----
+- ✅ decimal precision
+- ✅ missing value style
+- ✅ border template
+- ✅ 出力環境（table / table*）
+- 🔲 alignment template
 
 ## UI
-
-以下満たす：
-
-```txt id="pmjlwm"
-clean
-academic
-usable
-responsive minimum
-```
-
-。
-
----
+- ✅ clean / academic / usable
+- ✅ responsive minimum（mobile タブ切替）
 
 ## Development
-
-以下満たす：
-
-```txt id="m4p5ev"
-runnable
-regression zero
-feature branch
-preview confirmed
-```
-
-。
+- ✅ runnable
+- ✅ regression zero
+- ✅ feature branch
+- 🔲 preview confirmed（Vercel deploy 待ち）
 
 ---
 
 # 31. Claude Code 開始プロンプト
 
-初回開始時：
+継続開発時：
 
-```txt id="7lyj7l"
+```txt
 前回の続きです。
 
-SPECIFICATION.md に従って実装してください。
+SPECIFICATION.md を読み、現在の実装状況を確認してください。
+（§30 の ✅ / 🔲 が現時点の状態です）
 
-まずは repository structure を確認し、
-Reference Repository
-(https://github.com/Axe0320/citation-bibtex-converter)
-の UI と architecture を確認してください。
-
-その後、
-
-「今回変更する差分計画」
-
-を先に提示してください。
-
-一括実装は禁止。
-PR-like に小さく進めてください。
-
-Working state を維持し、
-npm run dev が常に動く状態で進めてください。
-
-最初は PR-1（Project Setup）から開始してください。
+実装前に「今回変更する差分計画」を先に提示してください。
+一括実装は禁止。PR-like に小さく進めてください。
+Working state を維持し、npm run dev が常に動く状態で進めてください。
 ```

@@ -25,6 +25,10 @@ import {
 } from './lib/table/editor'
 import type { StylePatch, CellAnchor } from './lib/table/editor'
 import type { EditMode } from './components/TableEditorToolbar'
+import { appendRows, appendColumns, replaceWith } from './lib/table/merge/mergeTables'
+import type { TableSource } from './lib/table/merge/sourceStack'
+import { detect } from './lib/table/parser/detect'
+import { MergePanel } from './components/MergePanel'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -92,6 +96,8 @@ function App() {
   const [selectedCellIds, setSelectedCellIds] = useState<Set<string>>(new Set())
   const [anchorCell, setAnchorCell] = useState<CellAnchor | null>(null)
   const [editMode, setEditMode] = useState<EditMode>('output')
+  const [sources, setSources] = useState<TableSource[]>([])
+  const [showMergePanel, setShowMergePanel] = useState(false)
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
 
   const selectedCells = useMemo(
@@ -154,6 +160,51 @@ function App() {
   function clearSelection() {
     setSelectedCellIds(new Set())
     setAnchorCell(null)
+  }
+
+  // ── Merge handlers ─────────────────────────────────
+  function handleAddSource(text: string, name: string): string | null {
+    const parsed = parseInput(text)
+    if (!parsed) return 'フォーマットを検出できませんでした。TSV / CSV / ログ形式で入力してください。'
+    const detectedType = detect(text)
+    const labelMap: Record<string, string> = {
+      tsv: 'TSV ソース',
+      csv: 'CSV ソース',
+      'classification-report': 'Classification Report',
+      log: 'Log ソース',
+      unknown: 'ソース',
+    }
+    const autoName = name.trim() || (labelMap[detectedType] ?? 'ソース')
+    const source: TableSource = {
+      id: crypto.randomUUID(),
+      name: autoName,
+      sourceType: detectedType === 'unknown' ? 'manual' : detectedType,
+      model: parsed,
+    }
+    setSources((prev) => [...prev, source])
+    return null
+  }
+
+  function handleAppendRows(source: TableSource) {
+    setModel((prev) => appendRows(prev, source.model))
+    clearSelection()  // Requirement 4: clear stale selection
+  }
+
+  function handleAppendColumns(source: TableSource) {
+    setModel((prev) => appendColumns(prev, source.model))
+    clearSelection()  // Requirement 4
+  }
+
+  function handleReplaceWith(source: TableSource) {
+    // Requirement 1: confirm before replace
+    if (window.confirm('現在のテーブルを置き換えますか？')) {
+      setModel(replaceWith(source.model))
+      clearSelection()  // Requirement 4
+    }
+  }
+
+  function handleRemoveSource(id: string) {
+    setSources((prev) => prev.filter((s) => s.id !== id))
   }
 
   function handleLoadExample() {
@@ -233,6 +284,15 @@ function App() {
             <button className="btn-secondary text-sm" onClick={() => setShowCreateDialog(true)}>
               Create Table
             </button>
+            <button
+              className="btn-secondary text-sm"
+              onClick={() => setShowMergePanel((v) => !v)}
+              style={{ background: showMergePanel ? 'var(--accent-light)' : undefined,
+                       borderColor: showMergePanel ? 'var(--accent)' : undefined,
+                       color: showMergePanel ? 'var(--accent)' : undefined }}
+            >
+              Merge
+            </button>
             <button className="btn-primary text-sm" onClick={handleCopyLatex}>
               {copied ? 'Copied!' : 'Copy LaTeX'}
             </button>
@@ -268,6 +328,18 @@ function App() {
 
         {/* Formatting controls — above panels on desktop */}
         <FormattingBar options={options} onChange={setOptions} />
+
+        {/* Merge panel — shown when Merge button is toggled */}
+        {showMergePanel && (
+          <MergePanel
+            sources={sources}
+            onAddSource={handleAddSource}
+            onAppendRows={handleAppendRows}
+            onAppendColumns={handleAppendColumns}
+            onReplaceWith={handleReplaceWith}
+            onRemoveSource={handleRemoveSource}
+          />
+        )}
 
         {/* Desktop layout: Input+Preview top row, LaTeX full width bottom */}
         <div className="hidden md:flex md:flex-col gap-5 mt-5">

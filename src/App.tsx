@@ -3,6 +3,8 @@ import type { TableModel } from './lib/table/types'
 import { parseInput } from './lib/table/parser'
 import { PreviewPanel } from './components/PreviewPanel'
 import { latexGenerator } from './lib/table/generators/latexGenerator'
+import { FormattingBar } from './components/FormattingBar'
+import { type FormattingOptions, DEFAULT_OPTIONS } from './lib/table/formatters/options'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -63,7 +65,8 @@ function App() {
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<'input' | 'preview' | 'latex'>('input')
   const [model, setModel] = useState<TableModel>(DUMMY_MODEL)
-  const latex = useMemo(() => latexGenerator(model), [model])
+  const [options, setOptions] = useState<FormattingOptions>(DEFAULT_OPTIONS)
+  const latex = useMemo(() => latexGenerator(model, options), [model, options])
 
   function updateCell(rowId: string, cellId: string, value: string) {
     setModel((prev) => ({
@@ -157,6 +160,9 @@ function App() {
           {activeTab === 'preview' && <PreviewPanel model={model} onCellChange={updateCell} />}
           {activeTab === 'latex' && <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />}
         </div>
+
+        {/* Formatting controls */}
+        <FormattingBar options={options} onChange={setOptions} />
       </main>
 
       {/* Toast */}

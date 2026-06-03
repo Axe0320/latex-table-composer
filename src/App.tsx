@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import type { TableModel, BorderStyle } from './lib/table/types'
 import { parseInput } from './lib/table/parser'
 import { PreviewPanel } from './components/PreviewPanel'
@@ -29,6 +29,10 @@ import { appendRows, appendColumns, replaceWith } from './lib/table/merge/mergeT
 import type { TableSource } from './lib/table/merge/sourceStack'
 import { detect } from './lib/table/parser/detect'
 import { MergePanel } from './components/MergePanel'
+import { parseExcel } from './lib/table/parser/parseExcel'
+import { normalizeTable } from './lib/table/normalize'
+import { parseHTMLTable } from './lib/table/clipboard/parseHTMLTable'
+import { parseClipboardMarkdown } from './lib/table/clipboard/parseClipboardMarkdown'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -98,6 +102,7 @@ function App() {
   const [editMode, setEditMode] = useState<EditMode>('output')
   const [sources, setSources] = useState<TableSource[]>([])
   const [showMergePanel, setShowMergePanel] = useState(false)
+  const mainFileInputRef = useRef<HTMLInputElement>(null)
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
 
   const selectedCells = useMemo(
@@ -162,27 +167,41 @@ function App() {
     setAnchorCell(null)
   }
 
+  // ── File upload helpers ──────────────────────────────
+  async function parseFileToModel(file: File) {
+    const isExcel = /\.(xlsx|xls)$/i.test(file.name)
+    if (isExcel) {
+      const buffer = await file.arrayBuffer()
+      const rows = await parseExcel(buffer)
+      return rows.length > 0 ? normalizeTable(rows) : null
+    }
+    const text = await file.text()
+    return parseInput(text)
+  }
+
+  // Upload File button: load single file into main table
+  async function handleMainFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const model = await parseFileToModel(file)
+    if (model) { setModel(model); clearSelection() }
+  }
+
   // ── Merge handlers ─────────────────────────────────
-  function handleAddSource(text: string, name: string): string | null {
-    const parsed = parseInput(text)
-    if (!parsed) return 'フォーマットを検出できませんでした。TSV / CSV / ログ形式で入力してください。'
-    const detectedType = detect(text)
-    const labelMap: Record<string, string> = {
-      tsv: 'TSV ソース',
-      csv: 'CSV ソース',
-      'classification-report': 'Classification Report',
-      log: 'Log ソース',
-      unknown: 'ソース',
+  async function handleAddSourceFiles(files: File[]): Promise<void> {
+    for (const file of files) {
+      const model = await parseFileToModel(file)
+      if (!model) continue
+      const detectedType = /\.(xlsx|xls)$/i.test(file.name) ? 'csv' as const : detect(await file.text().catch(() => ''))
+      const source: TableSource = {
+        id: crypto.randomUUID(),
+        name: file.name,
+        sourceType: detectedType === 'unknown' ? 'manual' : detectedType,
+        model,
+      }
+      setSources((prev) => [...prev, source])
     }
-    const autoName = name.trim() || (labelMap[detectedType] ?? 'ソース')
-    const source: TableSource = {
-      id: crypto.randomUUID(),
-      name: autoName,
-      sourceType: detectedType === 'unknown' ? 'manual' : detectedType,
-      model: parsed,
-    }
-    setSources((prev) => [...prev, source])
-    return null
   }
 
   function handleAppendRows(source: TableSource) {
@@ -286,6 +305,19 @@ function App() {
             </button>
             <button
               className="btn-secondary text-sm"
+              onClick={() => mainFileInputRef.current?.click()}
+            >
+              Upload File
+            </button>
+            <input
+              ref={mainFileInputRef}
+              type="file"
+              hidden
+              accept=".csv,.tsv,.txt,.xlsx,.xls"
+              onChange={handleMainFileUpload}
+            />
+            <button
+              className="btn-secondary text-sm"
               onClick={() => setShowMergePanel((v) => !v)}
               style={{ background: showMergePanel ? 'var(--accent-light)' : undefined,
                        borderColor: showMergePanel ? 'var(--accent)' : undefined,
@@ -333,7 +365,7 @@ function App() {
         {showMergePanel && (
           <MergePanel
             sources={sources}
-            onAddSource={handleAddSource}
+            onAddSourceFiles={handleAddSourceFiles}
             onAppendRows={handleAppendRows}
             onAppendColumns={handleAppendColumns}
             onReplaceWith={handleReplaceWith}
@@ -502,7 +534,28 @@ function InputPanel({ onParse }: { onParse: (model: TableModel) => void }) {
         wrap="off"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder={"Paste table here (TSV / CSV)...\n\nExample:\nMethod\tAcc\tF1\nOurs\t0.92\t0.91\nBaseline\t0.88\t0.87"}
+        placeholder={"Paste table here (TSV / CSV / Excel / Markdown)...\n\nExample:\nMethod\tAcc\tF1\nOurs\t0.92\t0.91\nBaseline\t0.88\t0.87"}
+        onPaste={(e) => {
+          const html = e.clipboardData?.getData('text/html') ?? ''
+          // ① HTML table（Excel / Google Sheets / PowerPoint）
+          if (html) {
+            const rows = parseHTMLTable(html)
+            if (rows && rows.length > 0) {
+              e.preventDefault()
+              setText(rows.map((r) => r.join('\t')).join('\n'))
+              return
+            }
+          }
+          // ② Markdown table（LLM 出力 / GitHub）
+          const plain = e.clipboardData?.getData('text/plain') ?? ''
+          const mdRows = parseClipboardMarkdown(plain)
+          if (mdRows && mdRows.length > 0) {
+            e.preventDefault()
+            setText(mdRows.map((r) => r.join('\t')).join('\n'))
+            return
+          }
+          // ③ fallthrough → 既存の native paste
+        }}
         style={{
           height: '320px',
           overflowX: 'auto',

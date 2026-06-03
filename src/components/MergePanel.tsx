@@ -1,9 +1,15 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { TableSource } from '../lib/table/merge/sourceStack'
+
+const ACCEPTED = '.csv,.tsv,.txt,.xlsx,.xls'
+
+function isAcceptedFile(file: File): boolean {
+  return /\.(csv|tsv|txt|xlsx|xls)$/i.test(file.name)
+}
 
 type Props = {
   sources: TableSource[]
-  onAddSource: (text: string, name: string) => string | null
+  onAddSourceFiles: (files: File[]) => Promise<void>
   onAppendRows: (source: TableSource) => void
   onAppendColumns: (source: TableSource) => void
   onReplaceWith: (source: TableSource) => void
@@ -12,25 +18,43 @@ type Props = {
 
 export function MergePanel({
   sources,
-  onAddSource,
+  onAddSourceFiles,
   onAppendRows,
   onAppendColumns,
   onReplaceWith,
   onRemoveSource,
 }: Props) {
-  const [text, setText] = useState('')
-  const [name, setName] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  function handleAdd() {
-    const errMsg = onAddSource(text, name)
-    if (errMsg) {
-      setError(errMsg)
-      return
-    }
-    setError(null)
-    setText('')
-    setName('')
+  async function handleFiles(files: File[]) {
+    const valid = files.filter(isAcceptedFile)
+    if (valid.length === 0) return
+    setIsLoading(true)
+    await onAddSourceFiles(valid)
+    setIsLoading(false)
+  }
+
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  function onDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  async function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(false)
+    await handleFiles(Array.from(e.dataTransfer.files))
+  }
+
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    await handleFiles(Array.from(e.target.files ?? []))
+    e.target.value = ''
   }
 
   return (
@@ -59,70 +83,51 @@ export function MergePanel({
         </span>
       </div>
 
-      {/* Add source */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-        <textarea
-          className="w-full font-mono text-sm resize-none"
-          rows={5}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={'マージしたいデータを貼り付け（TSV / CSV / ログ）...'}
-          style={{
-            background: '#FAFAFA',
-            border: `1.5px solid ${error ? '#EF4444' : 'var(--border)'}`,
-            borderRadius: 'var(--rs)',
-            padding: '.75rem 1rem',
-            outline: 'none',
-            lineHeight: 1.75,
-            color: 'var(--text)',
-            transition: 'border-color .18s',
-          }}
-          onFocus={(e) => {
-            e.target.style.borderColor = 'var(--border-focus)'
-            e.target.style.boxShadow = '0 0 0 3px rgba(108,99,255,.1)'
-          }}
-          onBlur={(e) => {
-            e.target.style.borderColor = error ? '#EF4444' : 'var(--border)'
-            e.target.style.boxShadow = 'none'
-          }}
-        />
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="ソース名（省略可）"
-            style={{
-              flex: 1,
-              padding: '0.4rem 0.75rem',
-              fontSize: '0.875rem',
-              border: '1.5px solid var(--border)',
-              borderRadius: 'var(--rs)',
-              background: '#FAFAFA',
-              color: 'var(--text)',
-              outline: 'none',
-            }}
-          />
+      {/* Drop zone */}
+      <div
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onClick={() => fileInputRef.current?.click()}
+        style={{
+          border: `1.5px dashed ${isDragging ? 'var(--accent)' : 'var(--border)'}`,
+          borderRadius: 'var(--rs)',
+          background: isDragging ? 'var(--accent-light)' : 'var(--bg)',
+          padding: '1.25rem',
+          textAlign: 'center',
+          cursor: 'pointer',
+          transition: 'all .15s',
+          marginBottom: sources.length > 0 ? '1rem' : 0,
+        }}
+      >
+        <p className="text-sm font-semibold mb-1"
+          style={{ color: isDragging ? 'var(--accent)' : 'var(--text-sub)' }}>
+          {isLoading ? '読み込み中...' : isDragging ? 'ここにドロップ' : 'ここにドロップ、または'}
+        </p>
+        {!isLoading && !isDragging && (
           <button
-            className="btn-primary text-sm"
-            onClick={handleAdd}
-            disabled={!text.trim()}
-            style={{ opacity: text.trim() ? 1 : 0.5 }}
+            className="btn-secondary text-sm"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
           >
-            ＋ Stack に追加
+            📂 Upload Source File
           </button>
-        </div>
-        {error && (
-          <p className="text-xs" style={{ color: '#EF4444' }}>{error}</p>
         )}
+        <p className="text-xs mt-2" style={{ color: 'var(--text-light)' }}>
+          CSV / TSV / XLSX / TXT（複数ファイル対応）
+        </p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          hidden
+          multiple
+          accept={ACCEPTED}
+          onChange={onFileChange}
+        />
       </div>
 
-      {/* Source stack list */}
-      {sources.length === 0 ? (
-        <p className="text-xs" style={{ color: 'var(--text-light)', textAlign: 'center', padding: '0.75rem 0' }}>
-          ソースがありません。上のエリアにデータを貼り付けて追加してください。
-        </p>
-      ) : (
+      {/* Source stack */}
+      {sources.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           {sources.map((source) => {
             const colCount = source.model.rows[0]?.cells.length ?? 0
@@ -156,98 +161,51 @@ type CardProps = {
   onRemove: () => void
 }
 
-function SourceCard({
-  source, colCount, rowCount,
-  onAppendRows, onAppendColumns, onReplaceWith, onRemove,
-}: CardProps) {
+function SourceCard({ source, colCount, rowCount, onAppendRows, onAppendColumns, onReplaceWith, onRemove }: CardProps) {
   return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--rs)',
-        padding: '0.625rem 0.875rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-        flexWrap: 'wrap',
-        background: 'var(--bg)',
-      }}
-    >
-      {/* Info */}
+    <div style={{
+      border: '1px solid var(--border)', borderRadius: 'var(--rs)',
+      padding: '0.625rem 0.875rem', display: 'flex', alignItems: 'center',
+      gap: '0.75rem', flexWrap: 'wrap', background: 'var(--bg)',
+    }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p className="text-sm font-semibold" style={{ color: 'var(--text)', margin: 0,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {source.name}
+          📄 {source.name}
         </p>
         <p className="text-xs" style={{ color: 'var(--text-light)', margin: 0 }}>
           {colCount} 列 × {rowCount} 行 · {source.sourceType}
         </p>
       </div>
-
-      {/* Actions */}
       <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0, flexWrap: 'wrap' }}>
-        <ActionBtn title="このソースの行を主テーブル末尾に追加" onClick={onAppendRows}>
-          ↓ 行追加
-        </ActionBtn>
-        <ActionBtn title="このソースの列を主テーブル右端に追加" onClick={onAppendColumns}>
-          → 列追加
-        </ActionBtn>
-        <ActionBtn title="主テーブルをこのソースで置き換え" onClick={onReplaceWith} warn>
-          Replace
-        </ActionBtn>
-        <ActionBtn title="スタックから削除" onClick={onRemove} danger>
-          ✕
-        </ActionBtn>
+        <ABtn title="行を末尾に追加" onClick={onAppendRows}>↓ 行追加</ABtn>
+        <ABtn title="列を右端に追加" onClick={onAppendColumns}>→ 列追加</ABtn>
+        <ABtn title="主テーブルを置き換え" onClick={onReplaceWith} warn>Replace</ABtn>
+        <ABtn title="スタックから削除" onClick={onRemove} danger>✕</ABtn>
       </div>
     </div>
   )
 }
 
-type ActionBtnProps = {
-  title?: string
-  warn?: boolean
-  danger?: boolean
-  children: React.ReactNode
-  onClick: () => void
-}
-
-function ActionBtn({ title, warn = false, danger = false, children, onClick }: ActionBtnProps) {
-  const borderColor = danger ? '#FECACA' : warn ? '#FDE68A' : 'var(--border)'
-  const bgColor = danger ? '#FEF2F2' : warn ? '#FFFBEB' : 'var(--card)'
-  const textColor = danger ? '#EF4444' : warn ? '#D97706' : 'var(--text-sub)'
-  const hoverBorder = danger ? '#EF4444' : warn ? '#D97706' : 'var(--accent)'
-  const hoverBg = danger ? '#FEE2E2' : warn ? '#FEF3C7' : 'var(--accent-light)'
-  const hoverText = danger ? '#EF4444' : warn ? '#D97706' : 'var(--accent)'
+function ABtn({ title, warn = false, danger = false, children, onClick }: {
+  title?: string; warn?: boolean; danger?: boolean
+  children: React.ReactNode; onClick: () => void
+}) {
+  const border = danger ? '#FECACA' : warn ? '#FDE68A' : 'var(--border)'
+  const bg = danger ? '#FEF2F2' : warn ? '#FFFBEB' : 'var(--card)'
+  const text = danger ? '#EF4444' : warn ? '#D97706' : 'var(--text-sub)'
+  const hBorder = danger ? '#EF4444' : warn ? '#D97706' : 'var(--accent)'
+  const hBg = danger ? '#FEE2E2' : warn ? '#FEF3C7' : 'var(--accent-light)'
+  const hText = danger ? '#EF4444' : warn ? '#D97706' : 'var(--accent)'
 
   return (
-    <button
-      title={title}
-      onClick={onClick}
-      style={{
-        height: '26px',
-        padding: '0 0.5rem',
-        fontSize: '0.75rem',
-        fontWeight: 600,
-        display: 'flex',
-        alignItems: 'center',
-        border: `1.5px solid ${borderColor}`,
-        borderRadius: 'var(--rx)',
-        background: bgColor,
-        color: textColor,
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        transition: 'all .12s',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = hoverBorder
-        e.currentTarget.style.color = hoverText
-        e.currentTarget.style.background = hoverBg
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = borderColor
-        e.currentTarget.style.color = textColor
-        e.currentTarget.style.background = bgColor
-      }}
+    <button title={title} onClick={onClick}
+      style={{ height: '26px', padding: '0 0.5rem', fontSize: '0.75rem', fontWeight: 600,
+        display: 'flex', alignItems: 'center', border: `1.5px solid ${border}`,
+        borderRadius: 'var(--rx)', background: bg, color: text, cursor: 'pointer',
+        whiteSpace: 'nowrap', transition: 'all .12s' }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = hBorder; e.currentTarget.style.color = hText; e.currentTarget.style.background = hBg }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = border; e.currentTarget.style.color = text; e.currentTarget.style.background = bg }}
     >
       {children}
     </button>

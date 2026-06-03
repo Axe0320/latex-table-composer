@@ -25,6 +25,7 @@ import {
 } from './lib/table/editor'
 import type { StylePatch, CellAnchor } from './lib/table/editor'
 import type { EditMode } from './components/TableEditorToolbar'
+import type { TableNote, NoteStyle, NoteNumbering } from './lib/table/types'
 import { appendRows, appendColumns, replaceWith } from './lib/table/merge/mergeTables'
 import type { TableSource } from './lib/table/merge/sourceStack'
 import { detect } from './lib/table/parser/detect'
@@ -169,6 +170,76 @@ function App() {
     setAnchorCell(null)
   }
 
+  // ── Notes ──────────────────────────────────────────────
+  function getNextMarker(notes: TableNote[], numbering: NoteNumbering): string {
+    const n = notes.length + 1
+    if (numbering === 'numeric') return String(n)
+    if (n <= 26) return String.fromCharCode(96 + n)
+    const outer = String.fromCharCode(96 + Math.floor((n - 1) / 26))
+    const inner = String.fromCharCode(96 + ((n - 1) % 26) + 1)
+    return outer + inner
+  }
+
+  function handleAddNote() {
+    const marker = getNextMarker(model.notes ?? [], model.noteNumbering ?? 'alpha')
+    setModel(prev => ({
+      ...prev,
+      notes: [...(prev.notes ?? []), { id: crypto.randomUUID(), marker, text: '' }],
+    }))
+  }
+
+  function handleUpdateNote(id: string, patch: Partial<TableNote>) {
+    setModel(prev => ({
+      ...prev,
+      notes: (prev.notes ?? []).map(n => n.id === id ? { ...n, ...patch } : n),
+    }))
+  }
+
+  function handleRemoveNote(id: string) {
+    setModel(prev => ({ ...prev, notes: (prev.notes ?? []).filter(n => n.id !== id) }))
+  }
+
+  function handleAttachNote(marker: string) {
+    if (selectedCellIds.size === 0) return
+    setModel(prev => ({
+      ...prev,
+      rows: prev.rows.map(row => ({
+        ...row,
+        cells: row.cells.map(cell => {
+          if (!selectedCellIds.has(cell.id)) return cell
+          const current = cell.noteMarkers ?? []
+          if (current.includes(marker)) return cell  // marker duplicate: MVP allows, skip re-attach
+          return { ...cell, noteMarkers: [...current, marker] }
+        }),
+      })),
+    }))
+  }
+
+  function handleCreateAndAttachNote() {
+    const marker = getNextMarker(model.notes ?? [], model.noteNumbering ?? 'alpha')
+    const newNote: TableNote = { id: crypto.randomUUID(), marker, text: '' }
+    setModel(prev => ({
+      ...prev,
+      notes: [...(prev.notes ?? []), newNote],
+      rows: prev.rows.map(row => ({
+        ...row,
+        cells: row.cells.map(cell => {
+          if (!selectedCellIds.has(cell.id)) return cell
+          const current = cell.noteMarkers ?? []
+          return { ...cell, noteMarkers: [...current, marker] }
+        }),
+      })),
+    }))
+  }
+
+  function handleChangeNoteStyle(style: NoteStyle) {
+    setModel(prev => ({ ...prev, noteStyle: style }))
+  }
+
+  function handleChangeNoteNumbering(numbering: NoteNumbering) {
+    setModel(prev => ({ ...prev, noteNumbering: numbering }))
+  }
+
   // Shared props objects (defined after all handlers)
   const previewProps = {
     model, options, viewMode, onViewModeChange: setViewMode,
@@ -182,6 +253,10 @@ function App() {
     onHideColumns: handleHideColumns, onShowColumn: handleShowColumn,
     onShowAllColumns: handleShowAllColumns,
     onCaptionChange: handleCaptionChange, onLabelChange: handleLabelChange,
+    onAttachNote: handleAttachNote, onCreateAndAttachNote: handleCreateAndAttachNote,
+    onAddNote: handleAddNote, onUpdateNote: handleUpdateNote,
+    onRemoveNote: handleRemoveNote, onChangeNoteStyle: handleChangeNoteStyle,
+    onChangeNoteNumbering: handleChangeNoteNumbering,
     onAddRowAbove: handleAddRowAbove, onAddRowBelow: handleAddRowBelow,
     onDeleteRow: handleDeleteRow, onAddColumnLeft: handleAddColumnLeft,
     onAddColumnRight: handleAddColumnRight, onDeleteColumn: handleDeleteColumn,

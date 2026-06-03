@@ -5,6 +5,7 @@ import { formatValue } from '../lib/table/formatters/shared/formatValue'
 import { TableEditorToolbar } from './TableEditorToolbar'
 import type { StylePatch } from '../lib/table/editor/updateCellStyle'
 import type { EditMode } from './TableEditorToolbar'
+import type { TableNote, NoteStyle, NoteNumbering } from '../lib/table/types'
 
 // Maps xcolor notation to CSS for Preview display
 function bgToCss(bg: string): string {
@@ -40,8 +41,15 @@ type EditHandlers = {
   onShowColumn: (colIdx: number) => void
   onShowAllColumns: () => void
   onEditModeChange: (mode: EditMode) => void
+  onAttachNote: (marker: string) => void
+  onCreateAndAttachNote: () => void
   onCaptionChange: (title: string) => void
   onLabelChange: (label: string) => void
+  onAddNote: () => void
+  onUpdateNote: (id: string, patch: Partial<TableNote>) => void
+  onRemoveNote: (id: string) => void
+  onChangeNoteStyle: (style: NoteStyle) => void
+  onChangeNoteNumbering: (numbering: NoteNumbering) => void
 }
 
 type Props = EditHandlers & {
@@ -75,8 +83,15 @@ export function PreviewPanel({
   onShowColumn,
   onShowAllColumns,
   onEditModeChange,
+  onAttachNote,
+  onCreateAndAttachNote,
   onCaptionChange,
   onLabelChange,
+  onAddNote,
+  onUpdateNote,
+  onRemoveNote,
+  onChangeNoteStyle,
+  onChangeNoteNumbering,
   onAddRowAbove,
   onAddRowBelow,
   onDeleteRow,
@@ -221,6 +236,9 @@ export function PreviewPanel({
             onStyleChange={onStyleChange}
             onClearFormatting={onClearFormatting}
             onSelectAll={onSelectAll}
+            notes={model.notes ?? []}
+            onAttachNote={onAttachNote}
+            onCreateAndAttachNote={onCreateAndAttachNote}
             onHideColumns={onHideColumns}
             onShowColumn={onShowColumn}
             onShowAllColumns={onShowAllColumns}
@@ -419,6 +437,19 @@ export function PreviewPanel({
               \label{'{' + model.label + '}'}
             </p>
           )}
+
+          {/* Notes management UI */}
+          <NotesManager
+            notes={model.notes ?? []}
+            noteStyle={model.noteStyle ?? 'tnote'}
+            noteNumbering={model.noteNumbering ?? 'alpha'}
+            viewMode={viewMode}
+            onAddNote={onAddNote}
+            onUpdateNote={onUpdateNote}
+            onRemoveNote={onRemoveNote}
+            onChangeNoteStyle={onChangeNoteStyle}
+            onChangeNoteNumbering={onChangeNoteNumbering}
+          />
         </div>
       )}
     </div>
@@ -651,7 +682,17 @@ function DataRow({
                 : undefined
             }
           >
-            {displayValue}
+            {/* Preview mode: show value + note superscripts */}
+            {isEditable ? displayValue : (
+              <>
+                {displayValue}
+                {(cell.noteMarkers ?? []).map(m => (
+                  <sup key={m} style={{ fontSize: '0.65em', color: 'var(--accent)', marginLeft: '1px', userSelect: 'none' }}>
+                    {m}
+                  </sup>
+                ))}
+              </>
+            )}
           </Tag>
         )
         void visibleColIdx  // suppress unused warning
@@ -799,6 +840,108 @@ function PanelHeader({
           </button>
         ))}
       </div>
+    </div>
+  )
+}
+
+/* ── Notes Manager ───────────────────────────────────── */
+function NotesManager({
+  notes, noteStyle, noteNumbering, viewMode,
+  onAddNote, onUpdateNote, onRemoveNote, onChangeNoteStyle, onChangeNoteNumbering,
+}: {
+  notes: TableNote[]
+  noteStyle: NoteStyle
+  noteNumbering: NoteNumbering
+  viewMode: 'preview' | 'edit'
+  onAddNote: () => void
+  onUpdateNote: (id: string, patch: Partial<TableNote>) => void
+  onRemoveNote: (id: string) => void
+  onChangeNoteStyle: (s: NoteStyle) => void
+  onChangeNoteNumbering: (n: NoteNumbering) => void
+}) {
+  if (viewMode === 'preview' && notes.length === 0) return null
+
+  return (
+    <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '0.625rem' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+        <span className="text-xs font-bold uppercase" style={{ color: 'var(--text-light)', letterSpacing: '0.08em' }}>
+          Notes
+        </span>
+        {viewMode === 'edit' && (
+          <>
+            {/* Note style */}
+            {(['tnote', 'footnote'] as const).map(s => (
+              <button key={s} onMouseDown={e => e.preventDefault()} onClick={() => onChangeNoteStyle(s)}
+                style={{
+                  padding: '1px 8px', fontSize: '0.7rem', fontWeight: 600, borderRadius: 'var(--rx)',
+                  border: 'none', cursor: 'pointer', transition: 'all .15s',
+                  background: noteStyle === s ? 'var(--accent-light)' : 'var(--bg)',
+                  color: noteStyle === s ? 'var(--accent)' : 'var(--text-sub)',
+                }}>
+                {s === 'tnote' ? '\\tnote' : '\\footnotemark'}
+              </button>
+            ))}
+            <div style={{ width: '1px', height: '14px', background: 'var(--border)' }} />
+            {/* Numbering */}
+            {(['alpha', 'numeric'] as const).map(n => (
+              <button key={n} onMouseDown={e => e.preventDefault()} onClick={() => onChangeNoteNumbering(n)}
+                style={{
+                  padding: '1px 8px', fontSize: '0.7rem', fontWeight: 600, borderRadius: 'var(--rx)',
+                  border: 'none', cursor: 'pointer', transition: 'all .15s',
+                  background: noteNumbering === n ? 'var(--accent-light)' : 'var(--bg)',
+                  color: noteNumbering === n ? 'var(--accent)' : 'var(--text-sub)',
+                }}>
+                {n === 'alpha' ? 'a,b,c…' : '1,2,3…'}
+              </button>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* Note list */}
+      {notes.map(note => (
+        <div key={note.id} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '4px' }}>
+          {/* Marker */}
+          {viewMode === 'edit' ? (
+            <input value={note.marker} onChange={e => onUpdateNote(note.id, { marker: e.target.value })}
+              style={{ width: '36px', padding: '2px 4px', fontSize: '0.75rem', fontWeight: 700, textAlign: 'center',
+                border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--accent-light)',
+                color: 'var(--accent)', outline: 'none' }} />
+          ) : (
+            <span style={{ width: '36px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)',
+              textAlign: 'center', flexShrink: 0 }}>[{note.marker}]</span>
+          )}
+          {/* Text */}
+          {viewMode === 'edit' ? (
+            <input value={note.text} placeholder="注釈テキストを入力..."
+              onChange={e => onUpdateNote(note.id, { text: e.target.value })}
+              style={{ flex: 1, padding: '2px 6px', fontSize: '0.8rem',
+                border: '1px solid var(--border)', borderRadius: '4px',
+                background: '#FAFAFA', color: 'var(--text)', outline: 'none' }} />
+          ) : (
+            <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-sub)' }}>{note.text}</span>
+          )}
+          {/* Remove */}
+          {viewMode === 'edit' && (
+            <button onMouseDown={e => e.preventDefault()} onClick={() => onRemoveNote(note.id)}
+              style={{ padding: '1px 6px', fontSize: '0.7rem', border: '1px solid #FECACA',
+                borderRadius: '4px', background: '#FEF2F2', color: '#EF4444', cursor: 'pointer' }}>✕</button>
+          )}
+        </div>
+      ))}
+
+      {/* Add note button */}
+      {viewMode === 'edit' && (
+        <button onMouseDown={e => e.preventDefault()} onClick={onAddNote}
+          style={{ marginTop: '4px', padding: '2px 10px', fontSize: '0.75rem', fontWeight: 600,
+            border: '1.5px dashed var(--border)', borderRadius: 'var(--rx)',
+            background: 'transparent', color: 'var(--text-light)', cursor: 'pointer', transition: 'all .15s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-light)' }}>
+          ＋ 注釈を追加
+        </button>
+      )}
     </div>
   )
 }

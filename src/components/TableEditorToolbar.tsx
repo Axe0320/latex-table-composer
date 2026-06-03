@@ -1,4 +1,4 @@
-import type { TableCell } from '../lib/table/types'
+import type { TableCell, TableNote } from '../lib/table/types'
 import type { StylePatch } from '../lib/table/editor/updateCellStyle'
 
 export type EditMode = 'output' | 'source'
@@ -24,6 +24,9 @@ type Props = {
   onStyleChange: (patch: StylePatch) => void
   onClearFormatting: () => void
   onSelectAll: () => void
+  notes: TableNote[]
+  onAttachNote: (marker: string) => void
+  onCreateAndAttachNote: () => void
   onHideColumns: () => void
   onShowColumn: (colIdx: number) => void
   onShowAllColumns: () => void
@@ -43,6 +46,9 @@ export function TableEditorToolbar({
   onStyleChange,
   onClearFormatting,
   onSelectAll,
+  notes,
+  onAttachNote,
+  onCreateAndAttachNote,
   onHideColumns,
   onShowColumn,
   onShowAllColumns,
@@ -156,6 +162,40 @@ export function TableEditorToolbar({
           >
             Show
           </TBtn>
+        </ToolbarGroup>
+
+        <Divider />
+
+        {/* Attach Note — 既存選択 or 新規作成 (req.3) */}
+        <ToolbarGroup label="注釈">
+          <select
+            disabled={!hasSelection}
+            value=""
+            onMouseDown={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const val = e.target.value
+              e.currentTarget.value = ''
+              if (!val) return
+              if (val === '__new__') onCreateAndAttachNote()
+              else onAttachNote(val)
+            }}
+            style={{
+              height: '28px', padding: '0 0.5rem', fontSize: '0.75rem', fontWeight: 600,
+              border: '1.5px solid var(--border)', borderRadius: 'var(--rx)',
+              background: hasSelection ? 'var(--card)' : '#F9F9F9',
+              color: hasSelection ? 'var(--text)' : 'var(--text-light)',
+              cursor: hasSelection ? 'pointer' : 'default',
+              outline: 'none', maxWidth: '140px',
+            }}
+          >
+            <option value="" disabled>Attach Note...</option>
+            {notes.map(n => (
+              <option key={n.id} value={n.marker}>
+                [{n.marker}] {n.text.length > 12 ? n.text.slice(0, 12) + '…' : (n.text || '（空）')}
+              </option>
+            ))}
+            <option value="__new__">＋ 新規作成して付与</option>
+          </select>
         </ToolbarGroup>
 
         <Divider />

@@ -1,3 +1,12 @@
+export type NoteStyle     = 'tnote' | 'footnote'
+export type NoteNumbering = 'alpha' | 'numeric'
+
+export type TableNote = {
+  id: string
+  marker: string
+  text: string
+}
+
 export type TableCell = {
   id: string
   value: string
@@ -7,6 +16,7 @@ export type TableCell = {
   hidden?: boolean
   align?: 'left' | 'center' | 'right'
   backgroundColor?: string
+  noteMarkers?: string[]
 }
 
 export type BorderStyle = 'none' | 'hline' | 'midrule'
@@ -28,4 +38,7 @@ export type TableModel = {
   environment: 'table' | 'table*'
   columns: string[]
   rows: TableRow[]
+  notes?: TableNote[]
+  noteStyle?: NoteStyle
+  noteNumbering?: NoteNumbering
 }

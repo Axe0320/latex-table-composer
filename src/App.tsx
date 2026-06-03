@@ -119,7 +119,7 @@ function App() {
               LaTeX <span style={{ color: 'var(--accent)' }}>Table Composer</span>
             </h1>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-sub)' }}>
-              Academic Table Generator for Research Papers
+              表データを論文向け LaTeX に変換・整形するツール
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -159,8 +159,11 @@ function App() {
           ))}
         </div>
 
+        {/* Formatting controls — above panels on desktop */}
+        <FormattingBar options={options} onChange={setOptions} />
+
         {/* Desktop layout: Input+Preview top row, LaTeX full width bottom */}
-        <div className="hidden md:flex md:flex-col gap-5">
+        <div className="hidden md:flex md:flex-col gap-5 mt-5">
           <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <InputPanel onParse={setModel} />
             <PreviewPanel model={model} options={options} onCellChange={updateCell} />
@@ -169,14 +172,11 @@ function App() {
         </div>
 
         {/* Mobile: single panel by tab */}
-        <div className="md:hidden">
+        <div className="md:hidden mt-4">
           {activeTab === 'input' && <InputPanel onParse={setModel} />}
           {activeTab === 'preview' && <PreviewPanel model={model} options={options} onCellChange={updateCell} />}
           {activeTab === 'latex' && <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />}
         </div>
-
-        {/* Formatting controls */}
-        <FormattingBar options={options} onChange={setOptions} />
       </main>
 
       {/* Toast */}
@@ -258,11 +258,14 @@ function InputPanel({ onParse }: { onParse: (model: TableModel) => void }) {
 
       <textarea
         className="w-full font-mono text-sm resize-none"
-        rows={12}
+        wrap="off"
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder={"Paste table here (TSV / CSV)...\n\nExample:\nMethod\tAcc\tF1\nOurs\t0.92\t0.91\nBaseline\t0.88\t0.87"}
         style={{
+          height: '320px',
+          overflowX: 'auto',
+          overflowY: 'auto',
           background: '#FAFAFA',
           border: `1.5px solid ${error ? '#EF4444' : 'var(--border)'}`,
           borderRadius: 'var(--rs)',

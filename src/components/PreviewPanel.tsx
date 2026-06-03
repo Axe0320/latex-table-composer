@@ -415,16 +415,30 @@ function DataRow({
   const visibleCells = row.cells.filter((c) => !c.hidden)
   const rowHasContent = row.cells.some((c) => c.value.trim() !== '')
 
+  const template = options.borderTemplate
+
   const borderTop = (() => {
+    // First row always gets thick top border
     if (isFirst) return '2px solid var(--text)'
-    if (row.topBorder && row.topBorder !== 'none') return '1px solid var(--text)'
+    // Row-level override takes precedence
+    if (row.topBorder === 'none') return undefined
+    if (row.topBorder === 'hline' || row.topBorder === 'midrule') return '1px solid var(--text)'
+    // Template-based: full → always, minimal → never intermediate, academic/classic → separator only
+    if (template === 'full') return '1px solid var(--text)'
+    if (template === 'minimal') return undefined
     if (row.separatorTop) return '1px solid var(--text)'
     return undefined
   })()
 
   const borderBottom = (() => {
+    // Last row always gets thick bottom border
     if (isLast) return '2px solid var(--text)'
-    if (row.bottomBorder && row.bottomBorder !== 'none') return '1px solid var(--text)'
+    // Row-level override takes precedence
+    if (row.bottomBorder === 'none') return undefined
+    if (row.bottomBorder === 'hline' || row.bottomBorder === 'midrule') return '1px solid var(--text)'
+    // Template-based
+    if (template === 'full') return '1px solid var(--text)'
+    if (template === 'minimal') return undefined
     if (row.separatorBottom) return '1px solid var(--text)'
     return undefined
   })()

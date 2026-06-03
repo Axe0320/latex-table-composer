@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { TableModel } from './lib/table/types'
 import { parseInput } from './lib/table/parser'
+import { PreviewPanel } from './components/PreviewPanel'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -17,7 +18,7 @@ const DUMMY_MODEL: TableModel = {
       rowType: 'header',
       separatorBottom: true,
       cells: [
-        { id: makeId(), value: 'Method', bold: true },
+        { id: makeId(), value: 'Method', bold: true, align: 'center' },
         { id: makeId(), value: 'Accuracy', bold: true, align: 'center' },
         { id: makeId(), value: 'Precision', bold: true, align: 'center' },
         { id: makeId(), value: 'F1', bold: true, align: 'center' },
@@ -27,20 +28,20 @@ const DUMMY_MODEL: TableModel = {
       id: makeId(),
       rowType: 'normal',
       cells: [
-        { id: makeId(), value: 'Ours' },
-        { id: makeId(), value: '0.924', align: 'center' },
-        { id: makeId(), value: '0.918', align: 'center' },
-        { id: makeId(), value: '0.911', align: 'center' },
+        { id: makeId(), value: 'Ours', align: 'left' },
+        { id: makeId(), value: '0.924', align: 'right' },
+        { id: makeId(), value: '0.918', align: 'right' },
+        { id: makeId(), value: '0.911', align: 'right' },
       ],
     },
     {
       id: makeId(),
       rowType: 'normal',
       cells: [
-        { id: makeId(), value: 'BERT' },
-        { id: makeId(), value: '0.901', align: 'center' },
-        { id: makeId(), value: '0.895', align: 'center' },
-        { id: makeId(), value: '0.887', align: 'center' },
+        { id: makeId(), value: 'BERT', align: 'left' },
+        { id: makeId(), value: '0.901', align: 'right' },
+        { id: makeId(), value: '0.895', align: 'right' },
+        { id: makeId(), value: '0.887', align: 'right' },
       ],
     },
     {
@@ -48,10 +49,10 @@ const DUMMY_MODEL: TableModel = {
       rowType: 'summary',
       separatorTop: true,
       cells: [
-        { id: makeId(), value: 'Baseline', italic: true },
-        { id: makeId(), value: '0.872', align: 'center' },
-        { id: makeId(), value: '0.864', align: 'center' },
-        { id: makeId(), value: '0.859', align: 'center' },
+        { id: makeId(), value: 'Baseline', italic: true, align: 'left' },
+        { id: makeId(), value: '0.872', align: 'right' },
+        { id: makeId(), value: '0.864', align: 'right' },
+        { id: makeId(), value: '0.859', align: 'right' },
       ],
     },
   ],
@@ -61,6 +62,22 @@ function App() {
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<'input' | 'preview' | 'latex'>('input')
   const [model, setModel] = useState<TableModel>(DUMMY_MODEL)
+
+  function updateCell(rowId: string, cellId: string, value: string) {
+    setModel((prev) => ({
+      ...prev,
+      rows: prev.rows.map((row) =>
+        row.id !== rowId
+          ? row
+          : {
+              ...row,
+              cells: row.cells.map((cell) =>
+                cell.id !== cellId ? cell : { ...cell, value }
+              ),
+            }
+      ),
+    }))
+  }
 
   function handleCopyLatex() {
     navigator.clipboard.writeText('% LaTeX output will appear here').then(() => {
@@ -78,9 +95,11 @@ function App() {
       >
         <div className="mx-auto flex items-center justify-between px-5 py-4" style={{ maxWidth: '960px' }}>
           <div>
-            <h1 className="text-xl font-extrabold leading-tight" style={{ color: 'var(--text)', letterSpacing: '-0.02em' }}>
-              LaTeX{' '}
-              <span style={{ color: 'var(--accent)' }}>Table Composer</span>
+            <h1
+              className="text-xl font-extrabold leading-tight"
+              style={{ color: 'var(--text)', letterSpacing: '-0.02em' }}
+            >
+              LaTeX <span style={{ color: 'var(--accent)' }}>Table Composer</span>
             </h1>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-sub)' }}>
               Academic Table Generator for Research Papers
@@ -100,7 +119,10 @@ function App() {
       {/* Main */}
       <main className="mx-auto px-5 py-8" style={{ maxWidth: '960px' }}>
         {/* Mobile tab switcher */}
-        <div className="flex gap-1 mb-4 md:hidden" style={{ background: 'var(--border)', borderRadius: 'var(--rs)', padding: '3px' }}>
+        <div
+          className="flex gap-1 mb-4 md:hidden"
+          style={{ background: 'var(--border)', borderRadius: 'var(--rs)', padding: '3px' }}
+        >
           {(['input', 'preview', 'latex'] as const).map((tab) => (
             <button
               key={tab}
@@ -123,14 +145,14 @@ function App() {
         {/* 3-panel layout — desktop */}
         <div className="hidden md:grid gap-5" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <InputPanel onParse={setModel} />
-          <PreviewPanel model={model} />
+          <PreviewPanel model={model} onCellChange={updateCell} />
           <LaTeXPanel />
         </div>
 
         {/* Mobile: single panel by tab */}
         <div className="md:hidden">
           {activeTab === 'input' && <InputPanel onParse={setModel} />}
-          {activeTab === 'preview' && <PreviewPanel model={model} />}
+          {activeTab === 'preview' && <PreviewPanel model={model} onCellChange={updateCell} />}
           {activeTab === 'latex' && <LaTeXPanel />}
         </div>
       </main>
@@ -220,7 +242,7 @@ function InputPanel({ onParse }: { onParse: (model: TableModel) => void }) {
         placeholder={"Paste table here (TSV / CSV)...\n\nExample:\nMethod\tAcc\tF1\nOurs\t0.92\t0.91\nBaseline\t0.88\t0.87"}
         style={{
           background: '#FAFAFA',
-          border: `1.5px solid ${error ? 'var(--error, #EF4444)' : 'var(--border)'}`,
+          border: `1.5px solid ${error ? '#EF4444' : 'var(--border)'}`,
           borderRadius: 'var(--rs)',
           padding: '.75rem 1rem',
           outline: 'none',
@@ -247,65 +269,6 @@ function InputPanel({ onParse }: { onParse: (model: TableModel) => void }) {
       <button className="btn-primary w-full mt-1" onClick={handleParse}>
         Parse Table
       </button>
-    </div>
-  )
-}
-
-function PreviewPanel({ model }: { model: TableModel }) {
-  const visibleRows = model.rows.filter((r) => !r.cells.every((c) => c.hidden))
-
-  return (
-    <div className="card">
-      <PanelHeader num="2" title="Preview" />
-
-      {model.title && (
-        <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-sub)' }}>
-          {model.title}
-        </p>
-      )}
-
-      <div className="overflow-x-auto">
-        <table
-          className="w-full text-sm"
-          style={{ borderCollapse: 'collapse', fontFamily: 'inherit' }}
-        >
-          <tbody>
-            {visibleRows.map((row) => {
-              const visibleCells = row.cells.filter((c) => !c.hidden)
-              return (
-                <tr key={row.id}>
-                  {visibleCells.map((cell) => {
-                    const Tag = row.rowType === 'header' ? 'th' : 'td'
-                    return (
-                      <Tag
-                        key={cell.id}
-                        style={{
-                          padding: '0.4rem 0.75rem',
-                          textAlign: cell.align ?? (row.rowType === 'header' ? 'center' : 'left'),
-                          fontWeight: cell.bold ? 700 : row.rowType === 'header' ? 600 : 400,
-                          fontStyle: cell.italic ? 'italic' : 'normal',
-                          borderTop: row.separatorTop ? '1px solid var(--text)' : undefined,
-                          borderBottom: row.separatorBottom ? '1px solid var(--text)' : undefined,
-                          color: 'var(--text)',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {cell.value}
-                      </Tag>
-                    )
-                  })}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {model.label && (
-        <p className="text-xs mt-2" style={{ color: 'var(--text-light)' }}>
-          \label{'{' + model.label + '}'}
-        </p>
-      )}
     </div>
   )
 }

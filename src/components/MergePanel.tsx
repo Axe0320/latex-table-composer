@@ -8,6 +8,7 @@ function isAcceptedFile(file: File): boolean {
 }
 
 type Props = {
+  variant?: 'default' | 'inline'
   sources: TableSource[]
   onAddSourceFiles: (files: File[]) => Promise<void>
   onAppendRows: (source: TableSource) => void
@@ -17,6 +18,7 @@ type Props = {
 }
 
 export function MergePanel({
+  variant = 'default',
   sources,
   onAddSourceFiles,
   onAppendRows,
@@ -24,6 +26,7 @@ export function MergePanel({
   onReplaceWith,
   onRemoveSource,
 }: Props) {
+  const isInline = variant === 'inline'
   const [isDragging, setIsDragging] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -57,32 +60,8 @@ export function MergePanel({
     e.target.value = ''
   }
 
-  return (
-    <div
-      style={{
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--r)',
-        boxShadow: 'var(--shadow-md)',
-        padding: '1.25rem 1.5rem',
-        marginBottom: '1.25rem',
-      }}
-    >
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <span
-          className="flex items-center justify-center text-xs font-extrabold"
-          style={{ width: '1.375rem', height: '1.375rem', borderRadius: '50%',
-            background: 'var(--accent-light)', color: 'var(--accent)' }}
-        >
-          M
-        </span>
-        <span className="text-xs font-bold uppercase"
-          style={{ color: 'var(--text-light)', letterSpacing: '0.1em' }}>
-          Merge Sources
-        </span>
-      </div>
-
+  const content = (
+    <>
       {/* Drop zone */}
       <div
         onDragOver={onDragOver}
@@ -147,6 +126,31 @@ export function MergePanel({
           })}
         </div>
       )}
+    </>
+  )
+
+  // inline variant: no outer card, no header, reduced margins
+  if (isInline) return <div>{content}</div>
+
+  return (
+    <div style={{
+      background: 'var(--card)', border: '1px solid var(--border)',
+      borderRadius: 'var(--r)', boxShadow: 'var(--shadow-md)',
+      padding: '1.25rem 1.5rem', marginBottom: '1.25rem',
+    }}>
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="flex items-center justify-center text-xs font-extrabold"
+          style={{ width: '1.375rem', height: '1.375rem', borderRadius: '50%',
+            background: 'var(--accent-light)', color: 'var(--accent)' }}>
+          M
+        </span>
+        <span className="text-xs font-bold uppercase"
+          style={{ color: 'var(--text-light)', letterSpacing: '0.1em' }}>
+          Merge Sources
+        </span>
+      </div>
+      {content}
     </div>
   )
 }

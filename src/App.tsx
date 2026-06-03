@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import type { TableModel, BorderStyle } from './lib/table/types'
 import { parseInput } from './lib/table/parser'
 import { PreviewPanel } from './components/PreviewPanel'
@@ -6,7 +6,7 @@ import { latexGenerator } from './lib/table/generators/latexGenerator'
 import { FormattingBar } from './components/FormattingBar'
 import { type FormattingOptions, DEFAULT_OPTIONS } from './lib/table/formatters/options'
 import { EXAMPLES } from './lib/example/examples'
-import { CreateTableDialog } from './components/CreateTableDialog'
+import { InputPanel } from './components/InputPanel'
 import {
   addRowAbove,
   addRowBelow,
@@ -28,11 +28,8 @@ import type { EditMode } from './components/TableEditorToolbar'
 import { appendRows, appendColumns, replaceWith } from './lib/table/merge/mergeTables'
 import type { TableSource } from './lib/table/merge/sourceStack'
 import { detect } from './lib/table/parser/detect'
-import { MergePanel } from './components/MergePanel'
 import { parseExcel } from './lib/table/parser/parseExcel'
 import { normalizeTable } from './lib/table/normalize'
-import { parseHTMLTable } from './lib/table/clipboard/parseHTMLTable'
-import { parseClipboardMarkdown } from './lib/table/clipboard/parseClipboardMarkdown'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -95,14 +92,21 @@ function App() {
   const [model, setModel] = useState<TableModel>(DUMMY_MODEL)
   const [options, setOptions] = useState<FormattingOptions>(DEFAULT_OPTIONS)
   const [exampleIdx, setExampleIdx] = useState(0)
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [viewMode, setViewMode] = useState<'preview' | 'edit'>('preview')
   const [selectedCellIds, setSelectedCellIds] = useState<Set<string>>(new Set())
   const [anchorCell, setAnchorCell] = useState<CellAnchor | null>(null)
   const [editMode, setEditMode] = useState<EditMode>('output')
   const [sources, setSources] = useState<TableSource[]>([])
-  const [showMergePanel, setShowMergePanel] = useState(false)
-  const mainFileInputRef = useRef<HTMLInputElement>(null)
+  const [inputCollapsed, setInputCollapsed] = useState(false)
+  const hasAutoCollapsed = useRef(false)
+
+  // Auto-collapse Input on first Edit mode entry only
+  useEffect(() => {
+    if (viewMode === 'edit' && !hasAutoCollapsed.current) {
+      setInputCollapsed(true)
+      hasAutoCollapsed.current = true
+    }
+  }, [viewMode])
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
 
   const selectedCells = useMemo(
@@ -167,6 +171,11 @@ function App() {
     setAnchorCell(null)
   }
 
+  function handleParse(model: TableModel) {
+    setModel(model)
+    clearSelection()
+  }
+
   // ── File upload helpers ──────────────────────────────
   async function parseFileToModel(file: File) {
     const isExcel = /\.(xlsx|xls)$/i.test(file.name)
@@ -179,11 +188,8 @@ function App() {
     return parseInput(text)
   }
 
-  // Upload File button: load single file into main table
-  async function handleMainFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
+  // Load single file into main table (called from InputPanel Upload tab)
+  async function handleMainFileUpload(file: File): Promise<void> {
     const model = await parseFileToModel(file)
     if (model) { setModel(model); clearSelection() }
   }
@@ -266,7 +272,6 @@ function App() {
   function handleCreateTable(rows: number, cols: number) {
     setModel(createEmptyTable(rows, cols))
     setViewMode('edit')
-    setShowCreateDialog(false)
     clearSelection()
   }
 
@@ -299,31 +304,6 @@ function App() {
           <div className="flex items-center gap-2">
             <button className="btn-secondary text-sm" onClick={handleLoadExample}>
               Load Example
-            </button>
-            <button className="btn-secondary text-sm" onClick={() => setShowCreateDialog(true)}>
-              Create Table
-            </button>
-            <button
-              className="btn-secondary text-sm"
-              onClick={() => mainFileInputRef.current?.click()}
-            >
-              Upload File
-            </button>
-            <input
-              ref={mainFileInputRef}
-              type="file"
-              hidden
-              accept=".csv,.tsv,.txt,.xlsx,.xls"
-              onChange={handleMainFileUpload}
-            />
-            <button
-              className="btn-secondary text-sm"
-              onClick={() => setShowMergePanel((v) => !v)}
-              style={{ background: showMergePanel ? 'var(--accent-light)' : undefined,
-                       borderColor: showMergePanel ? 'var(--accent)' : undefined,
-                       color: showMergePanel ? 'var(--accent)' : undefined }}
-            >
-              Merge
             </button>
             <button className="btn-primary text-sm" onClick={handleCopyLatex}>
               {copied ? 'Copied!' : 'Copy LaTeX'}
@@ -361,22 +341,25 @@ function App() {
         {/* Formatting controls — above panels on desktop */}
         <FormattingBar options={options} onChange={setOptions} />
 
-        {/* Merge panel — shown when Merge button is toggled */}
-        {showMergePanel && (
-          <MergePanel
-            sources={sources}
-            onAddSourceFiles={handleAddSourceFiles}
-            onAppendRows={handleAppendRows}
-            onAppendColumns={handleAppendColumns}
-            onReplaceWith={handleReplaceWith}
-            onRemoveSource={handleRemoveSource}
-          />
-        )}
-
-        {/* Desktop layout: Input+Preview top row, LaTeX full width bottom */}
+        {/* Desktop layout: Input (collapsible) + Preview + LaTeX */}
         <div className="hidden md:flex md:flex-col gap-5 mt-5">
-          <div className="grid gap-5" style={{ gridTemplateColumns: viewMode === 'edit' ? '1fr' : '1fr 1fr' }}>
-            {viewMode !== 'edit' && <InputPanel onParse={setModel} />}
+          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
+            <div style={inputCollapsed ? { flexShrink: 0 } : { flex: 1, minWidth: 0 }}>
+              <InputPanel
+                collapsed={inputCollapsed}
+                onToggleCollapse={() => setInputCollapsed((v) => !v)}
+                onParse={handleParse}
+                onMainFileUpload={handleMainFileUpload}
+                onCreateTable={handleCreateTable}
+                sources={sources}
+                onAddSourceFiles={handleAddSourceFiles}
+                onAppendRows={handleAppendRows}
+                onAppendColumns={handleAppendColumns}
+                onReplaceWith={handleReplaceWith}
+                onRemoveSource={handleRemoveSource}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
             <PreviewPanel
               model={model}
               options={options}
@@ -404,13 +387,28 @@ function App() {
               onDeleteColumn={handleDeleteColumn}
               onRowBorderChange={handleRowBorderChange}
             />
-          </div>
+            </div>{/* /PreviewPanel wrapper */}
+          </div>{/* /flex row */}
           <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />
         </div>
 
         {/* Mobile: single panel by tab */}
         <div className="md:hidden mt-4">
-          {activeTab === 'input' && <InputPanel onParse={setModel} />}
+          {activeTab === 'input' && (
+            <InputPanel
+              collapsed={false}
+              onToggleCollapse={() => {}}
+              onParse={handleParse}
+              onMainFileUpload={handleMainFileUpload}
+              onCreateTable={handleCreateTable}
+              sources={sources}
+              onAddSourceFiles={handleAddSourceFiles}
+              onAppendRows={handleAppendRows}
+              onAppendColumns={handleAppendColumns}
+              onReplaceWith={handleReplaceWith}
+              onRemoveSource={handleRemoveSource}
+            />
+          )}
           {activeTab === 'preview' && (
             <PreviewPanel
               model={model}
@@ -454,143 +452,11 @@ function App() {
         </div>
       )}
 
-      {/* Create Table Dialog */}
-      {showCreateDialog && (
-        <CreateTableDialog
-          onClose={() => setShowCreateDialog(false)}
-          onCreate={handleCreateTable}
-        />
-      )}
+
     </div>
   )
 }
 
-function PanelHeader({ num, title }: { num: string; title: string }) {
-  return (
-    <div className="flex items-center gap-2 mb-4">
-      <span
-        className="flex items-center justify-center text-xs font-extrabold"
-        style={{
-          width: '1.375rem',
-          height: '1.375rem',
-          borderRadius: '50%',
-          background: 'var(--accent-light)',
-          color: 'var(--accent)',
-        }}
-      >
-        {num}
-      </span>
-      <span
-        className="text-xs font-bold uppercase tracking-widest"
-        style={{ color: 'var(--text-light)', letterSpacing: '0.1em' }}
-      >
-        {title}
-      </span>
-    </div>
-  )
-}
-
-function InputPanel({ onParse }: { onParse: (model: TableModel) => void }) {
-  const [text, setText] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  function handleParse() {
-    const result = parseInput(text)
-    if (result === null) {
-      setError('Could not detect format. Please paste TSV or CSV.')
-      return
-    }
-    setError(null)
-    onParse(result)
-  }
-
-  return (
-    <div className="card">
-      <PanelHeader num="1" title="Input" />
-      <div
-        className="flex gap-1 mb-3"
-        style={{ background: 'var(--bg)', borderRadius: 'var(--rx)', padding: '3px' }}
-      >
-        {['Paste', 'CSV', 'Manual'].map((mode, i) => (
-          <button
-            key={mode}
-            className="flex-1 py-1 text-xs font-semibold transition-all"
-            style={{
-              borderRadius: 'calc(var(--rx) - 1px)',
-              background: i === 0 ? 'var(--card)' : 'transparent',
-              color: i === 0 ? 'var(--accent)' : 'var(--text-sub)',
-              boxShadow: i === 0 ? 'var(--shadow-sm)' : 'none',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            {mode}
-          </button>
-        ))}
-      </div>
-
-      <textarea
-        className="w-full font-mono text-sm resize-none"
-        wrap="off"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder={"Paste table here (TSV / CSV / Excel / Markdown)...\n\nExample:\nMethod\tAcc\tF1\nOurs\t0.92\t0.91\nBaseline\t0.88\t0.87"}
-        onPaste={(e) => {
-          const html = e.clipboardData?.getData('text/html') ?? ''
-          // ① HTML table（Excel / Google Sheets / PowerPoint）
-          if (html) {
-            const rows = parseHTMLTable(html)
-            if (rows && rows.length > 0) {
-              e.preventDefault()
-              setText(rows.map((r) => r.join('\t')).join('\n'))
-              return
-            }
-          }
-          // ② Markdown table（LLM 出力 / GitHub）
-          const plain = e.clipboardData?.getData('text/plain') ?? ''
-          const mdRows = parseClipboardMarkdown(plain)
-          if (mdRows && mdRows.length > 0) {
-            e.preventDefault()
-            setText(mdRows.map((r) => r.join('\t')).join('\n'))
-            return
-          }
-          // ③ fallthrough → 既存の native paste
-        }}
-        style={{
-          height: '320px',
-          overflowX: 'auto',
-          overflowY: 'auto',
-          background: '#FAFAFA',
-          border: `1.5px solid ${error ? '#EF4444' : 'var(--border)'}`,
-          borderRadius: 'var(--rs)',
-          padding: '.75rem 1rem',
-          outline: 'none',
-          lineHeight: 1.75,
-          color: 'var(--text)',
-          transition: 'border-color .18s, box-shadow .18s',
-        }}
-        onFocus={(e) => {
-          e.target.style.borderColor = 'var(--border-focus)'
-          e.target.style.boxShadow = '0 0 0 3px rgba(108,99,255,.1)'
-        }}
-        onBlur={(e) => {
-          e.target.style.borderColor = error ? '#EF4444' : 'var(--border)'
-          e.target.style.boxShadow = 'none'
-        }}
-      />
-
-      {error && (
-        <p className="text-xs mt-1" style={{ color: '#EF4444' }}>
-          {error}
-        </p>
-      )}
-
-      <button className="btn-primary w-full mt-1" onClick={handleParse}>
-        Parse Table
-      </button>
-    </div>
-  )
-}
 
 function LaTeXPanel({
   latex,
@@ -603,7 +469,13 @@ function LaTeXPanel({
 }) {
   return (
     <div className="card">
-      <PanelHeader num="3" title="LaTeX" />
+      <div className="flex items-center gap-2 mb-4">
+        <span className="flex items-center justify-center text-xs font-extrabold"
+          style={{ width: '1.375rem', height: '1.375rem', borderRadius: '50%',
+            background: 'var(--accent-light)', color: 'var(--accent)' }}>3</span>
+        <span className="text-xs font-bold uppercase tracking-widest"
+          style={{ color: 'var(--text-light)', letterSpacing: '0.1em' }}>LaTeX</span>
+      </div>
       <textarea
         readOnly
         className="w-full font-mono text-sm resize-none"

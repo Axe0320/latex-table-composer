@@ -354,11 +354,11 @@ function App() {
           ))}
         </div>
 
-        {/* Formatting controls */}
-        <FormattingBar options={options} onChange={setOptions} />
-
         {/* Mode selector — Citation⇄BibTeX style */}
         <ModeSelector active={inputMode} onChange={setInputMode} />
+
+        {/* Formatting controls — below mode selector */}
+        <FormattingBar options={options} onChange={setOptions} />
 
         {/* Desktop layout: changes based on inputMode */}
         <div className="hidden md:flex md:flex-col gap-5">

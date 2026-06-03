@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { TableModel } from './lib/table/types'
+import { parseInput } from './lib/table/parser'
 
 function makeId(): string {
   return crypto.randomUUID()
@@ -59,7 +60,7 @@ const DUMMY_MODEL: TableModel = {
 function App() {
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<'input' | 'preview' | 'latex'>('input')
-  const [model] = useState<TableModel>(DUMMY_MODEL)
+  const [model, setModel] = useState<TableModel>(DUMMY_MODEL)
 
   function handleCopyLatex() {
     navigator.clipboard.writeText('% LaTeX output will appear here').then(() => {
@@ -121,14 +122,14 @@ function App() {
 
         {/* 3-panel layout — desktop */}
         <div className="hidden md:grid gap-5" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-          <InputPanel />
+          <InputPanel onParse={setModel} />
           <PreviewPanel model={model} />
           <LaTeXPanel />
         </div>
 
         {/* Mobile: single panel by tab */}
         <div className="md:hidden">
-          {activeTab === 'input' && <InputPanel />}
+          {activeTab === 'input' && <InputPanel onParse={setModel} />}
           {activeTab === 'preview' && <PreviewPanel model={model} />}
           {activeTab === 'latex' && <LaTeXPanel />}
         </div>
@@ -172,7 +173,20 @@ function PanelHeader({ num, title }: { num: string; title: string }) {
   )
 }
 
-function InputPanel() {
+function InputPanel({ onParse }: { onParse: (model: TableModel) => void }) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  function handleParse() {
+    const result = parseInput(text)
+    if (result === null) {
+      setError('Could not detect format. Please paste TSV or CSV.')
+      return
+    }
+    setError(null)
+    onParse(result)
+  }
+
   return (
     <div className="card">
       <PanelHeader num="1" title="Input" />
@@ -201,10 +215,12 @@ function InputPanel() {
       <textarea
         className="w-full font-mono text-sm resize-none"
         rows={12}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
         placeholder={"Paste table here (TSV / CSV)...\n\nExample:\nMethod\tAcc\tF1\nOurs\t0.92\t0.91\nBaseline\t0.88\t0.87"}
         style={{
           background: '#FAFAFA',
-          border: '1.5px solid var(--border)',
+          border: `1.5px solid ${error ? 'var(--error, #EF4444)' : 'var(--border)'}`,
           borderRadius: 'var(--rs)',
           padding: '.75rem 1rem',
           outline: 'none',
@@ -217,12 +233,18 @@ function InputPanel() {
           e.target.style.boxShadow = '0 0 0 3px rgba(108,99,255,.1)'
         }}
         onBlur={(e) => {
-          e.target.style.borderColor = 'var(--border)'
+          e.target.style.borderColor = error ? '#EF4444' : 'var(--border)'
           e.target.style.boxShadow = 'none'
         }}
       />
 
-      <button className="btn-primary w-full mt-1">
+      {error && (
+        <p className="text-xs mt-1" style={{ color: '#EF4444' }}>
+          {error}
+        </p>
+      )}
+
+      <button className="btn-primary w-full mt-1" onClick={handleParse}>
         Parse Table
       </button>
     </div>

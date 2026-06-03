@@ -79,7 +79,7 @@ export function PreviewPanel({
   editMode,
 }: Props) {
   // In Preview mode always use formatted display; in Edit mode respect editMode
-  const effectiveEditMode: EditMode = viewMode === 'edit' ? editMode : 'formatted'
+  const effectiveEditMode: EditMode = viewMode === 'edit' ? editMode : 'output'
   const visibleRows = model.rows.filter((r) => !r.cells.every((c) => c.hidden))
   const visibleColCount = visibleRows[0]?.cells.filter((c) => !c.hidden).length ?? 0
 
@@ -507,8 +507,8 @@ function DataRow({
       {/* Data cells */}
       {visibleCells.map((cell, visibleColIdx) => {
         const Tag = row.rowType === 'header' ? 'th' : 'td'
-        // Raw mode shows cell.value directly; Formatted mode applies formatValue to data cells
-        const displayValue = (editMode === 'raw' || row.rowType === 'header')
+        // Source mode shows cell.value directly; Output mode applies formatValue to data cells
+        const displayValue = (editMode === 'source' || row.rowType === 'header')
           ? cell.value
           : formatValue(cell.value, options)
         const isEditable = viewMode === 'edit'

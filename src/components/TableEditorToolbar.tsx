@@ -1,7 +1,7 @@
 import type { TableCell } from '../lib/table/types'
 import type { StylePatch } from '../lib/table/editor/updateCellStyle'
 
-export type EditMode = 'formatted' | 'raw'
+export type EditMode = 'output' | 'source'
 
 const BG_OPTIONS: { title: string; value: string | undefined; css: string }[] = [
   { title: 'なし', value: undefined, css: 'transparent' },
@@ -175,7 +175,7 @@ export function TableEditorToolbar({
               gap: '2px',
             }}
           >
-            {(['formatted', 'raw'] as const).map((mode) => (
+            {(['output', 'source'] as const).map((mode) => (
               <button
                 key={mode}
                 onMouseDown={(e) => e.preventDefault()}
@@ -194,7 +194,7 @@ export function TableEditorToolbar({
                   whiteSpace: 'nowrap',
                 }}
               >
-                {mode === 'formatted' ? 'Formatted' : 'Raw'}
+                {mode === 'output' ? 'Output' : 'Source'}
               </button>
             ))}
           </div>

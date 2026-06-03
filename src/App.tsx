@@ -91,7 +91,7 @@ function App() {
   const [viewMode, setViewMode] = useState<'preview' | 'edit'>('preview')
   const [selectedCellIds, setSelectedCellIds] = useState<Set<string>>(new Set())
   const [anchorCell, setAnchorCell] = useState<CellAnchor | null>(null)
-  const [editMode, setEditMode] = useState<EditMode>('formatted')
+  const [editMode, setEditMode] = useState<EditMode>('output')
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
 
   const selectedCells = useMemo(

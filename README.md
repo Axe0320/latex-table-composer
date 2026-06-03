@@ -30,6 +30,8 @@ Excel で表作成
 
 バックエンド・データベース不要。ブラウザだけで完結します。
 
+**公開 URL：** https://latex-table-composer.vercel.app/
+
 ---
 
 ## 課題背景

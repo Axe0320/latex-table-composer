@@ -195,8 +195,8 @@ function App() {
 
         {/* Desktop layout: Input+Preview top row, LaTeX full width bottom */}
         <div className="hidden md:flex md:flex-col gap-5 mt-5">
-          <div className="grid gap-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <InputPanel onParse={setModel} />
+          <div className="grid gap-5" style={{ gridTemplateColumns: viewMode === 'edit' ? '1fr' : '1fr 1fr' }}>
+            {viewMode !== 'edit' && <InputPanel onParse={setModel} />}
             <PreviewPanel
               model={model}
               options={options}

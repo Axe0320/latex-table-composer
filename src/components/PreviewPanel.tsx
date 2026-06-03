@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { TableModel, TableRow, BorderStyle } from '../lib/table/types'
 import type { FormattingOptions } from '../lib/table/formatters/options'
 import { formatValue } from '../lib/table/formatters/shared/formatValue'
@@ -40,14 +41,35 @@ export function PreviewPanel({
 
   const lastRowId = visibleRows[visibleRows.length - 1]?.id ?? ''
 
+  // Scroll to add-row button when rows increase in Edit mode
+  const addRowBtnRef = useRef<HTMLButtonElement>(null)
+  const prevRowCountRef = useRef(model.rows.length)
+  useEffect(() => {
+    if (viewMode === 'edit' && model.rows.length > prevRowCountRef.current) {
+      addRowBtnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+    prevRowCountRef.current = model.rows.length
+  }, [model.rows.length, viewMode])
+
+  // Check whether a column has any non-empty content
+  function colHasContent(colIdx: number): boolean {
+    return model.rows.some((row) => (row.cells[colIdx]?.value ?? '').trim() !== '')
+  }
+
   function handleDeleteLastRow() {
     const last = [...visibleRows].reverse().find((r) => r.rowType !== 'header')
-    if (last) onDeleteRow(last.id)
+    if (!last) return
+    const hasContent = last.cells.some((c) => c.value.trim() !== '')
+    if (!hasContent || window.confirm('入力内容のある行を削除しますか？')) {
+      onDeleteRow(last.id)
+    }
   }
 
   function handleDeleteLastColumn() {
-    if (window.confirm('末尾列を削除しますか？')) {
-      onDeleteColumn(visibleColCount - 1)
+    const lastIdx = visibleColCount - 1
+    const hasContent = colHasContent(lastIdx)
+    if (!hasContent || window.confirm('入力内容のある列を削除しますか？')) {
+      onDeleteColumn(lastIdx)
     }
   }
 
@@ -106,7 +128,8 @@ export function PreviewPanel({
                             danger
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
-                              if (window.confirm('この列を削除しますか？')) {
+                              const hasContent = colHasContent(colIdx)
+                              if (!hasContent || window.confirm('入力内容のある列を削除しますか？')) {
                                 onDeleteColumn(colIdx)
                               }
                             }}
@@ -188,6 +211,7 @@ export function PreviewPanel({
           {/* Persistent add-row button — Edit mode only */}
           {viewMode === 'edit' && (
             <button
+              ref={addRowBtnRef}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onAddRowBelow(lastRowId)}
               style={{
@@ -259,6 +283,7 @@ function DataRow({
   onRowBorderChange,
 }: DataRowProps) {
   const visibleCells = row.cells.filter((c) => !c.hidden)
+  const rowHasContent = row.cells.some((c) => c.value.trim() !== '')
 
   const borderTop = (() => {
     if (isFirst) return '2px solid var(--text)'
@@ -307,7 +332,11 @@ function DataRow({
                 title="行を削除"
                 danger
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={onDeleteRow}
+                onClick={() => {
+                  if (!rowHasContent || window.confirm('入力内容のある行を削除しますか？')) {
+                    onDeleteRow()
+                  }
+                }}
               >
                 ✕
               </EBtn>
@@ -332,7 +361,7 @@ function DataRow({
                 border: '1px solid var(--border)',
                 borderRadius: '4px',
                 background: 'var(--card)',
-                color: 'var(--text-sub)',
+                color: 'var(--text)',
                 cursor: 'pointer',
                 maxWidth: '3.5rem',
               }}
@@ -474,7 +503,7 @@ function PanelHeader({
         className="text-xs font-bold uppercase"
         style={{ color: 'var(--text-light)', letterSpacing: '0.1em' }}
       >
-        Preview
+        {viewMode === 'edit' ? 'Edit' : 'Preview'}
       </span>
 
       {/* Mode toggle */}

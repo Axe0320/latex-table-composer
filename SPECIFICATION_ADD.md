@@ -2214,3 +2214,360 @@ client-side only
 
 ```
 ```
+
+---
+
+````md
+# 13. PR-15: UI Redesign + Caption + Annotation
+
+## 概要
+
+本 PR は以下を目的とする：
+
+1. Input / Upload / Create / Merge を Input Panel に統合
+2. Alignment UI をアイコン化
+3. Caption / Label のインライン編集
+4. Table Annotation（tnote / tablenotes / threeparttable）対応
+5. Edit mode UX の改善
+
+本 PR により、論文投稿レベルの表作成体験へ近づける。
+
+---
+
+# 15A. Input Panel 統合
+
+## 背景
+
+現状：
+
+* Header に機能ボタンが散在（Create Table / Upload File / Merge）
+* MergePanel が独立
+* Create Table が dialog
+* Input パネルの CSV / Manual タブが未実装
+
+これを Input panel に統合する。
+
+---
+
+## 新 UI
+
+### Input tabs
+
+```txt
+┌──────────────────────────────────────┐
+│ [Paste] [Upload] [Create] [Merge]    │
+├──────────────────────────────────────┤
+│ （各タブ内容）                        │
+└──────────────────────────────────────┘
+```
+
+### タブ構成
+
+| タブ    | 内容                          |
+| ------ | ---------------------------- |
+| Paste  | 既存 textarea（clipboard 最適化含む） |
+| Upload | ファイルアップロード（PR-14 移植）         |
+| Create | 空テーブル作成（Dialog 廃止）            |
+| Merge  | Source Stack 管理（PR-14 MergePanel 移植）|
+
+---
+
+## Header の変更
+
+### 削除
+
+```txt
+[Create Table]
+[Upload File]
+[Merge]
+```
+
+### 維持
+
+```txt
+[Load Example]
+[Copy LaTeX]
+```
+
+---
+
+## Edit mode 時の Input
+
+### 変更前
+
+Input panel を完全非表示。
+
+### 変更後
+
+Collapse 方式に変更。
+
+```txt
+Desktop
+
+┌─────────┬──────────────────────┐
+│ Input   │ Preview / Edit       │
+│ [<<]    │                      │
+└─────────┴──────────────────────┘
+```
+
+### 動作
+
+* Preview mode：Input 展開状態
+* Edit mode：自動 collapse（初回のみ）
+* `[>>]` でいつでも再表示可能
+
+---
+
+## Create Table（Dialog 廃止）
+
+Create タブ UI：
+
+```txt
+Rows: [4]
+Cols: [5]
+
+[Create Table]
+```
+
+Create 時：
+1. createEmptyTable(rows, cols)
+2. setModel()
+3. Edit mode に切替
+4. Input panel collapse
+
+---
+
+## Merge（Input タブ内移植）
+
+MergePanel をそのまま Input の Merge タブ内に移植。
+Replace は必ず `window.confirm()`。
+
+---
+
+# 15B. Caption / Label + Toolbar UX
+
+## Alignment アイコン化
+
+### 変更前
+
+```txt
+[L][C][R]
+```
+
+### 変更後
+
+Word / Google Docs 型アイコン。inline SVG で実装。currentColor 対応。
+
+```txt
+[←≡]   左揃え
+[≡≡]   中央揃え
+[≡→]   右揃え
+```
+
+---
+
+## Caption / Label 編集
+
+PreviewPanel の sticky ヘッダー内に常設フィールドを追加。
+
+```txt
+┌──────────────────────────────────┐
+│ Caption: [___________________]   │
+│ Label:    [___________________]  │
+├──────────────────────────────────┤
+│ table                            │
+└──────────────────────────────────┘
+```
+
+### Label
+
+`tab:` は強制しない。placeholder のみ（`tab:accuracy_result`）。
+値は完全自由入力。
+
+### 更新方式
+
+```txt
+onChange → 300ms debounce → setModel()
+```
+
+onBlur 廃止。Preview / LaTeX 即時同期。
+
+---
+
+# 15C. Table Annotation
+
+## 目的
+
+論文表の注釈（tnote / tablenotes / threeparttable）対応。
+
+---
+
+## 型変更
+
+### TableNote（新規）
+
+```ts
+type TableNote = {
+  id: string
+  marker: string
+  text: string
+}
+```
+
+### TableCell（追加）
+
+```ts
+noteMarkers?: string[]   // 複数注釈対応 \tnote{a,b}
+```
+
+### TableModel（追加）
+
+```ts
+notes: TableNote[]   // default: []
+```
+
+既存互換維持（notes 未定義 → []）。
+
+---
+
+## Toolbar
+
+選択セル時に `[Attach Note]` ボタンを有効化。
+
+---
+
+## 注釈 UI（PreviewPanel 下部）
+
+```txt
+Notes
+
+[a] [___________________] [✕]
+[b] [___________________] [✕]
+
+[+ Add Note]
+```
+
+### Add Note
+
+自動採番（a → b → c → … → *）。
+
+### Attach
+
+セル選択状態で `[Attach Note]` → marker 選択。
+
+---
+
+## Preview 表示
+
+```html
+Gemini<sup>a</sup>
+GPT<sup>b</sup>
+```
+
+---
+
+## LaTeX 出力
+
+### セル
+
+```latex
+Gemini\tnote{a}
+Gemini\tnote{a,b}   ← 複数
+```
+
+### Wrapper 条件
+
+以下いずれかで `threeparttable` ラッパーを有効化：
+
+* セルに `noteMarkers` が存在する
+* `notes.length > 0`
+
+### 出力例
+
+```latex
+% Required Packages:
+% \usepackage{booktabs}
+% \usepackage{threeparttable}
+
+\begin{threeparttable}
+\begin{tabular}{lrr}
+\toprule
+Method & Acc & F1 \\
+\midrule
+Gemini\tnote{a} & 0.924 & 0.911 \\
+GPT\tnote{b} & 0.952 & 0.946 \\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\item[a] Accuracy reported on test set.
+\item[b] Averaged over 3 runs.
+\end{tablenotes}
+\end{threeparttable}
+```
+
+注釈なし時は従来通り（threeparttable なし）。
+
+---
+
+# 実装順序
+
+```txt
+15A: Input 統合（Header 簡略化 + タブ化 + collapse）
+↓
+15B: Caption/Label + Alignment アイコン
+↓
+15C: Annotation（型変更 + generator 改修）
+```
+
+---
+
+# バックアップポイント
+
+```txt
+git tag pre-pr15          ← 実装開始前（作成済み）
+git tag pr-15a-complete   ← 15A 完了後
+git tag pr-15b-complete   ← 15B 完了後
+git tag pre-pr15c-types   ← 15C 開始前（型変更前）
+```
+
+---
+
+# Regression Requirements
+
+* parse pipeline を壊さない
+* Merge / Upload / selection state を維持（PR-12〜14）
+* zoom 環境で崩れない
+* annotation 未使用時は LaTeX 出力完全互換
+* `notes: []` デフォルトで既存 model との互換維持
+
+---
+
+# 変更ファイル一覧（予定）
+
+## 15A
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/App.tsx` | Header 簡略化、Input collapse 管理、タブルーティング |
+| `src/components/InputPanel.tsx` | 新規（App.tsx インライン → 独立コンポーネント） |
+| `src/components/CreateTableDialog.tsx` | Create タブに移植後廃止 |
+| `src/components/MergePanel.tsx` | Input タブ内に移植（コンポーネント維持） |
+
+## 15B
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/components/TableEditorToolbar.tsx` | L/C/R → SVG アイコン |
+| `src/components/PreviewPanel.tsx` | Caption/Label フィールド追加 |
+| `src/App.tsx` | debounce ハンドラ追加 |
+
+## 15C
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/lib/table/types.ts` | `TableNote`, `noteMarkers`, `notes` 追加 |
+| `src/lib/table/generators/latexGenerator.ts` | threeparttable ラッパー、`\tnote{}` 出力 |
+| `src/components/PreviewPanel.tsx` | `<sup>` 表示、Notes 管理 UI |
+| `src/components/TableEditorToolbar.tsx` | `[Attach Note]` ボタン追加 |
+| `src/App.tsx` | notes state ハンドラ追加 |
+````

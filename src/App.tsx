@@ -79,6 +79,7 @@ function App() {
   const [options, setOptions] = useState<FormattingOptions>(DEFAULT_OPTIONS)
   const [exampleIdx, setExampleIdx] = useState(0)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [viewMode, setViewMode] = useState<'preview' | 'edit'>('preview')
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
 
   function handleLoadExample() {
@@ -119,6 +120,7 @@ function App() {
   }
   function handleCreateTable(rows: number, cols: number) {
     setModel(createEmptyTable(rows, cols))
+    setViewMode('edit')
     setShowCreateDialog(false)
   }
 
@@ -198,6 +200,8 @@ function App() {
             <PreviewPanel
               model={model}
               options={options}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
               onCellChange={updateCell}
               onAddRowAbove={handleAddRowAbove}
               onAddRowBelow={handleAddRowBelow}
@@ -218,6 +222,8 @@ function App() {
             <PreviewPanel
               model={model}
               options={options}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
               onCellChange={updateCell}
               onAddRowAbove={handleAddRowAbove}
               onAddRowBelow={handleAddRowBelow}

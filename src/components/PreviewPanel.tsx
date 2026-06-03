@@ -1,11 +1,9 @@
 import type { TableModel, TableRow, BorderStyle } from '../lib/table/types'
 import type { FormattingOptions } from '../lib/table/formatters/options'
 import { formatValue } from '../lib/table/formatters/shared/formatValue'
-import { RowControls } from './RowControls'
+import { TableEditorToolbar } from './TableEditorToolbar'
 
-type Props = {
-  model: TableModel
-  options: FormattingOptions
+type EditHandlers = {
   onCellChange: (rowId: string, cellId: string, value: string) => void
   onAddRowAbove: (rowId: string) => void
   onAddRowBelow: (rowId: string) => void
@@ -16,9 +14,18 @@ type Props = {
   onRowBorderChange: (rowId: string, border: BorderStyle) => void
 }
 
+type Props = EditHandlers & {
+  model: TableModel
+  options: FormattingOptions
+  viewMode: 'preview' | 'edit'
+  onViewModeChange: (mode: 'preview' | 'edit') => void
+}
+
 export function PreviewPanel({
   model,
   options,
+  viewMode,
+  onViewModeChange,
   onCellChange,
   onAddRowAbove,
   onAddRowBelow,
@@ -31,67 +38,159 @@ export function PreviewPanel({
   const visibleRows = model.rows.filter((r) => !r.cells.every((c) => c.hidden))
   const visibleColCount = visibleRows[0]?.cells.filter((c) => !c.hidden).length ?? 0
 
+  const lastRowId = visibleRows[visibleRows.length - 1]?.id ?? ''
+
+  function handleDeleteLastRow() {
+    const last = [...visibleRows].reverse().find((r) => r.rowType !== 'header')
+    if (last) onDeleteRow(last.id)
+  }
+
+  function handleDeleteLastColumn() {
+    if (window.confirm('末尾列を削除しますか？')) {
+      onDeleteColumn(visibleColCount - 1)
+    }
+  }
+
   return (
     <div className="card">
-      <PanelHeader />
+      <PanelHeader viewMode={viewMode} onViewModeChange={onViewModeChange} />
 
       {visibleRows.length === 0 ? (
         <EmptyState />
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div>
           {model.title && (
             <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-sub)' }}>
               {model.title}
             </p>
           )}
 
-          <table
-            style={{
-              borderCollapse: 'collapse',
-              fontSize: '0.875rem',
-              fontFamily: 'inherit',
-              minWidth: '100%',
-              width: 'auto',
-            }}
-          >
-            <tbody>
-              {/* Column controls row */}
-              <tr>
-                {/* Spacer for row controls column */}
-                <td style={{ width: '2.5rem' }} />
-                {Array.from({ length: visibleColCount }, (_, colIdx) => (
-                  <td key={colIdx} className="group/col" style={{ textAlign: 'center', padding: '0 0.25rem' }}>
-                    <ColControls
-                      colIdx={colIdx}
-                      onAddLeft={() => onAddColumnLeft(colIdx)}
-                      onAddRight={() => onAddColumnRight(colIdx)}
-                      onDelete={() => {
-                        if (window.confirm('この列を削除しますか？')) {
-                          onDeleteColumn(colIdx)
-                        }
-                      }}
-                    />
-                  </td>
-                ))}
-              </tr>
+          {viewMode === 'edit' && (
+            <TableEditorToolbar
+              onAddRow={() => onAddRowBelow(lastRowId)}
+              onDeleteLastRow={handleDeleteLastRow}
+              onAddColumn={() => onAddColumnRight(visibleColCount - 1)}
+              onDeleteLastColumn={handleDeleteLastColumn}
+            />
+          )}
 
-              {/* Data rows */}
-              {visibleRows.map((row, rowIdx) => (
-                <TableRowEl
-                  key={row.id}
-                  row={row}
-                  isFirst={rowIdx === 0}
-                  isLast={rowIdx === visibleRows.length - 1}
-                  options={options}
-                  onCellChange={onCellChange}
-                  onAddAbove={() => onAddRowAbove(row.id)}
-                  onAddBelow={() => onAddRowBelow(row.id)}
-                  onDelete={() => onDeleteRow(row.id)}
-                  onBorderChange={(border) => onRowBorderChange(row.id, border)}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div style={{ overflowX: 'auto' }}>
+            <table
+              style={{
+                borderCollapse: 'collapse',
+                fontSize: '0.875rem',
+                fontFamily: 'inherit',
+                minWidth: '100%',
+                width: 'auto',
+              }}
+            >
+              <tbody>
+                {/* Column controls row — Edit mode only */}
+                {viewMode === 'edit' && (
+                  <tr>
+                    {/* Spacer for row controls column */}
+                    <td style={{ width: '3.5rem' }} />
+                    {Array.from({ length: visibleColCount }, (_, colIdx) => (
+                      <td key={colIdx} style={{ textAlign: 'center', padding: '2px 4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '2px' }}>
+                          <EBtn
+                            title="左に列を追加"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => onAddColumnLeft(colIdx)}
+                          >
+                            ←＋
+                          </EBtn>
+                          <EBtn
+                            title="列を削除"
+                            danger
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              if (window.confirm('この列を削除しますか？')) {
+                                onDeleteColumn(colIdx)
+                              }
+                            }}
+                          >
+                            ✕
+                          </EBtn>
+                          <EBtn
+                            title="右に列を追加"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => onAddColumnRight(colIdx)}
+                          >
+                            ＋→
+                          </EBtn>
+                        </div>
+                      </td>
+                    ))}
+                    {/* Add column at far right */}
+                    <td style={{ padding: '2px 4px', textAlign: 'center' }}>
+                      <EBtn
+                        title="右端に列を追加"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => onAddColumnRight(visibleColCount - 1)}
+                      >
+                        ＋
+                      </EBtn>
+                    </td>
+                  </tr>
+                )}
+
+                {/* Data rows */}
+                {visibleRows.map((row, rowIdx) => (
+                  <DataRow
+                    key={row.id}
+                    row={row}
+                    isFirst={rowIdx === 0}
+                    isLast={rowIdx === visibleRows.length - 1}
+                    viewMode={viewMode}
+                    options={options}
+                    onCellChange={onCellChange}
+                    onAddRowAbove={() => onAddRowAbove(row.id)}
+                    onAddRowBelow={() => onAddRowBelow(row.id)}
+                    onDeleteRow={() => onDeleteRow(row.id)}
+                    onRowBorderChange={(border) => onRowBorderChange(row.id, border)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Persistent add-row button — Edit mode only */}
+          {viewMode === 'edit' && (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onAddRowBelow(lastRowId)}
+              style={{
+                width: '100%',
+                marginTop: '0.375rem',
+                height: '28px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                border: '1.5px dashed var(--border)',
+                borderRadius: 'var(--rs)',
+                background: 'transparent',
+                color: 'var(--text-light)',
+                cursor: 'pointer',
+                transition: 'all .15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--accent)'
+                e.currentTarget.style.color = 'var(--accent)'
+                e.currentTarget.style.background = 'var(--accent-light)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border)'
+                e.currentTarget.style.color = 'var(--text-light)'
+                e.currentTarget.style.background = 'transparent'
+              }}
+            >
+              ＋ 行を追加
+            </button>
+          )}
 
           {model.label && (
             <p className="text-xs mt-2" style={{ color: 'var(--text-light)' }}>
@@ -104,29 +203,31 @@ export function PreviewPanel({
   )
 }
 
-type RowProps = {
+type DataRowProps = {
   row: TableRow
   isFirst: boolean
   isLast: boolean
+  viewMode: 'preview' | 'edit'
   options: FormattingOptions
   onCellChange: (rowId: string, cellId: string, value: string) => void
-  onAddAbove: () => void
-  onAddBelow: () => void
-  onDelete: () => void
-  onBorderChange: (border: BorderStyle) => void
+  onAddRowAbove: () => void
+  onAddRowBelow: () => void
+  onDeleteRow: () => void
+  onRowBorderChange: (border: BorderStyle) => void
 }
 
-function TableRowEl({
+function DataRow({
   row,
   isFirst,
   isLast,
+  viewMode,
   options,
   onCellChange,
-  onAddAbove,
-  onAddBelow,
-  onDelete,
-  onBorderChange,
-}: RowProps) {
+  onAddRowAbove,
+  onAddRowBelow,
+  onDeleteRow,
+  onRowBorderChange,
+}: DataRowProps) {
   const visibleCells = row.cells.filter((c) => !c.hidden)
 
   const borderTop = (() => {
@@ -144,44 +245,98 @@ function TableRowEl({
   })()
 
   return (
-    <tr className="group/row">
-      {/* Row controls cell */}
-      <td
-        style={{
-          width: '2.5rem',
-          padding: 0,
-          verticalAlign: 'middle',
-          borderTop,
-          borderBottom,
-        }}
-      >
-        <RowControls
-          isHeader={row.rowType === 'header'}
-          bottomBorder={row.bottomBorder}
-          onAddAbove={onAddAbove}
-          onAddBelow={onAddBelow}
-          onDelete={onDelete}
-          onBorderChange={onBorderChange}
-        />
-      </td>
+    <tr>
+      {/* Row controls — Edit mode only */}
+      {viewMode === 'edit' && (
+        <td
+          style={{
+            width: '3.5rem',
+            padding: '2px',
+            verticalAlign: 'middle',
+            borderTop,
+            borderBottom,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+            }}
+          >
+            <EBtn
+              title="上に行を追加"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onAddRowAbove}
+            >
+              ＋↑
+            </EBtn>
+            {row.rowType !== 'header' && (
+              <EBtn
+                title="行を削除"
+                danger
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={onDeleteRow}
+              >
+                ✕
+              </EBtn>
+            )}
+            <EBtn
+              title="下に行を追加"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onAddRowBelow}
+            >
+              ＋↓
+            </EBtn>
+            {/* Border select */}
+            <select
+              title="下罫線"
+              value={row.bottomBorder ?? 'none'}
+              onMouseDown={(e) => e.stopPropagation()}
+              onChange={(e) => onRowBorderChange(e.target.value as BorderStyle)}
+              style={{
+                marginTop: '2px',
+                fontSize: '0.6rem',
+                padding: '1px 2px',
+                border: '1px solid var(--border)',
+                borderRadius: '3px',
+                background: 'var(--card)',
+                color: 'var(--text-sub)',
+                cursor: 'pointer',
+                maxWidth: '3rem',
+              }}
+            >
+              <option value="none">–</option>
+              <option value="hline">\hline</option>
+              <option value="midrule">\midrule</option>
+            </select>
+          </div>
+        </td>
+      )}
 
       {/* Data cells */}
       {visibleCells.map((cell) => {
         const Tag = row.rowType === 'header' ? 'th' : 'td'
         const displayValue =
           row.rowType === 'header' ? cell.value : formatValue(cell.value, options)
+        const isEditable = viewMode === 'edit'
 
         return (
           <Tag
             key={cell.id}
-            contentEditable="plaintext-only"
+            contentEditable={isEditable ? 'plaintext-only' : undefined}
             suppressContentEditableWarning
-            onBlur={(e) => {
-              const newValue = e.currentTarget.textContent ?? ''
-              if (newValue !== cell.value) {
-                onCellChange(row.id, cell.id, newValue)
-              }
-            }}
+            onBlur={
+              isEditable
+                ? (e) => {
+                    const newValue = e.currentTarget.textContent ?? ''
+                    if (newValue !== cell.value) {
+                      onCellChange(row.id, cell.id, newValue)
+                    }
+                  }
+                : undefined
+            }
             style={{
               padding: '0.35rem 0.75rem',
               textAlign: cell.align ?? 'left',
@@ -192,15 +347,19 @@ function TableRowEl({
               color: 'var(--text)',
               whiteSpace: 'nowrap',
               outline: 'none',
-              cursor: 'text',
+              cursor: isEditable ? 'text' : 'default',
               transition: 'background .1s',
             }}
-            onFocus={(e) => {
-              e.currentTarget.style.background = 'var(--accent-light)'
-            }}
-            onBlurCapture={(e) => {
-              e.currentTarget.style.background = 'transparent'
-            }}
+            onFocus={
+              isEditable
+                ? (e) => { e.currentTarget.style.background = 'var(--accent-light)' }
+                : undefined
+            }
+            onBlurCapture={
+              isEditable
+                ? (e) => { e.currentTarget.style.background = 'transparent' }
+                : undefined
+            }
           >
             {displayValue}
           </Tag>
@@ -210,38 +369,8 @@ function TableRowEl({
   )
 }
 
-function ColControls({
-  colIdx,
-  onAddLeft,
-  onAddRight,
-  onDelete,
-}: {
-  colIdx: number
-  onAddLeft: () => void
-  onAddRight: () => void
-  onDelete: () => void
-}) {
-  // colIdx is passed as a prop but only used via the callbacks
-  void colIdx
-  return (
-    <div
-      className="opacity-0 group-hover/col:opacity-100 transition-opacity"
-      style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2px', height: '18px' }}
-    >
-      <ColBtn title="左に列を追加" onMouseDown={(e) => e.preventDefault()} onClick={onAddLeft}>
-        ←＋
-      </ColBtn>
-      <ColBtn title="列を削除" onMouseDown={(e) => e.preventDefault()} onClick={onDelete} danger>
-        ✕
-      </ColBtn>
-      <ColBtn title="右に列を追加" onMouseDown={(e) => e.preventDefault()} onClick={onAddRight}>
-        ＋→
-      </ColBtn>
-    </div>
-  )
-}
-
-type ColBtnProps = {
+/* ── Shared inline edit button ──────────────────────── */
+type EBtnProps = {
   title?: string
   danger?: boolean
   children: React.ReactNode
@@ -249,34 +378,39 @@ type ColBtnProps = {
   onMouseDown?: (e: React.MouseEvent<HTMLButtonElement>) => void
 }
 
-function ColBtn({ title, danger = false, children, onClick, onMouseDown }: ColBtnProps) {
+function EBtn({ title, danger = false, children, onClick, onMouseDown }: EBtnProps) {
   return (
     <button
       title={title}
       onClick={onClick}
       onMouseDown={onMouseDown}
       style={{
-        height: '16px',
-        padding: '0 3px',
-        fontSize: '0.55rem',
+        minWidth: '22px',
+        height: '22px',
+        padding: '0 4px',
+        fontSize: '0.65rem',
+        fontWeight: 600,
         lineHeight: 1,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        border: 'none',
-        borderRadius: '3px',
-        background: 'transparent',
-        color: danger ? '#EF4444' : 'var(--text-light)',
+        border: `1px solid ${danger ? '#FECACA' : 'var(--border)'}`,
+        borderRadius: '4px',
+        background: danger ? '#FEF2F2' : 'var(--card)',
+        color: danger ? '#EF4444' : 'var(--text-sub)',
         cursor: 'pointer',
         whiteSpace: 'nowrap',
+        transition: 'all .12s',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = danger ? '#FEF2F2' : 'var(--accent-light)'
+        e.currentTarget.style.borderColor = danger ? '#EF4444' : 'var(--accent)'
         e.currentTarget.style.color = danger ? '#EF4444' : 'var(--accent)'
+        e.currentTarget.style.background = danger ? '#FEE2E2' : 'var(--accent-light)'
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent'
-        e.currentTarget.style.color = danger ? '#EF4444' : 'var(--text-light)'
+        e.currentTarget.style.borderColor = danger ? '#FECACA' : 'var(--border)'
+        e.currentTarget.style.color = danger ? '#EF4444' : 'var(--text-sub)'
+        e.currentTarget.style.background = danger ? '#FEF2F2' : 'var(--card)'
       }}
     >
       {children}
@@ -284,7 +418,14 @@ function ColBtn({ title, danger = false, children, onClick, onMouseDown }: ColBt
   )
 }
 
-function PanelHeader() {
+/* ── Panel header with mode toggle ─────────────────── */
+function PanelHeader({
+  viewMode,
+  onViewModeChange,
+}: {
+  viewMode: 'preview' | 'edit'
+  onViewModeChange: (m: 'preview' | 'edit') => void
+}) {
   return (
     <div className="flex items-center gap-2 mb-4">
       <span
@@ -305,9 +446,40 @@ function PanelHeader() {
       >
         Preview
       </span>
-      <span className="text-xs ml-auto" style={{ color: 'var(--text-light)' }}>
-        Click cell to edit
-      </span>
+
+      {/* Mode toggle */}
+      <div
+        style={{
+          marginLeft: 'auto',
+          display: 'flex',
+          background: 'var(--bg)',
+          borderRadius: 'var(--rx)',
+          padding: '2px',
+          gap: '2px',
+          border: '1px solid var(--border)',
+        }}
+      >
+        {(['preview', 'edit'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => onViewModeChange(mode)}
+            style={{
+              padding: '3px 10px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              borderRadius: 'calc(var(--rx) - 1px)',
+              border: 'none',
+              cursor: 'pointer',
+              background: viewMode === mode ? 'var(--card)' : 'transparent',
+              color: viewMode === mode ? 'var(--accent)' : 'var(--text-sub)',
+              boxShadow: viewMode === mode ? 'var(--shadow-sm)' : 'none',
+              transition: 'all .18s',
+            }}
+          >
+            {mode === 'preview' ? 'Preview' : 'Edit'}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

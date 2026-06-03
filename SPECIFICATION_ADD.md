@@ -1685,22 +1685,24 @@ npm run build
 ```
 ```
 ````md
-# 11. PR-14 Excel / PowerPoint Paste 最適化
+# 11. PR-14 File Upload + Source Manager + Clipboard Optimization
+
+## 方針変更（重要）
+
+旧方針：貼り付け中心の最適化
+新方針：**ファイルアップロード中心の UX** に変更
+
+理由：
+- 実研究では TSV 手打ちより CSV / Excel ファイルを直接扱うケースが圧倒的に多い
+- benchmark.csv / result.xlsx / classification_report.txt を直接ロードしたい
+- 旧 MergePanel の「貼り付け → Stack」は UX 的に弱い
+
+---
 
 ## 目的
 
-実運用で最も多い：
-
-```txt
-Excel
-Google Sheets
-PowerPoint
-Word
-論文PDF
-LLM出力
-````
-
-からのコピペを壊れず扱えるようにする。
+CSV / TSV / TXT / Excel ファイルを直接読み込み可能にし、
+MergePanel を Source Manager（複数データソース管理）へ変更する。
 
 加えて：
 
@@ -1718,256 +1720,133 @@ manual table creation
 
 ---
 
-# 11.1 Paste Optimization
-
-## 方針
-
-現在：
-
-```txt
-TSV / CSV
-classification report
-log
-```
-
-対応。
-
-PR-14 では：
-
-```txt
-real-world clipboard
-```
-
-最適化を追加する。
-
----
-
-## 11.2 Excel Paste 最適化
-
-### 問題
-
-Excel コピペ：
-
-```txt
-末尾空列
-空行
-hidden tab
-```
-
-が混入。
-
----
-
-### 対応
-
-normalize 強化：
-
-#### trailing empty column remove
-
-既存維持。
-
-#### duplicated empty rows remove
-
-追加。
-
-#### whitespace normalize
-
-追加：
-
-```txt
-full-width space
-tab
-multiple spaces
-```
-
-を整理。
-
-#### numeric inference 強化
-
-以下：
-
-```txt
-25.6M
-1,024
-98%
-```
-
-も数値候補として扱う。
-
----
-
-### 例
-
-入力：
-
-```txt
-Dataset	Model	Acc	F1
-CIFAR	ResNet	0.9531	0.9524
-```
-
-。
-
-そのまま：
-
-```txt
-parse → preview
-```
-
-可能。
-
----
-
-## 11.3 PowerPoint Paste 最適化
-
-### 問題
-
-PowerPoint 表コピー：
-
-列区切りが不安定。
-
-改行崩れ。
-
----
-
-### 対応
-
-heuristic parser 追加。
-
-優先順位：
-
-```txt
-tsv
-ppt-table
-classification
-log
-csv
-```
-
-。
-
----
-
-### ppt-table detect
-
-条件：
-
-```txt
-space-aligned columns
-```
-
-検出。
-
----
-
-### 例
-
-入力：
-
-```txt
-Method       Accuracy     F1
-Gemini       0.9184       0.8889
-GPT          0.9592       0.9646
-```
-
-。
-
-↓
-
-自動列推定。
-
----
-
-## 11.4 LLM Markdown Table Parser
-
-追加。
-
-対応：
-
-```md
-| Method | Accuracy |
-|---------|----------|
-| GPT     | 0.92     |
-```
-
-。
-
-自動 parse。
-
----
-
-# 11.5 Manual Table Creation Mode
+# 11.1 File Upload（主テーブル）
 
 ## 目的
 
-Input なしでも：
+Header に `[Upload File]` ボタンを追加し、ファイルを直接読み込んで主テーブルに設定する。
+
+## 対応形式
 
 ```txt
-0から表作成
+.csv
+.tsv
+.txt
+.xlsx
+.xls
 ```
 
-可能にする。
+## 仕様
+
+- Upload 後、自動 parse → `setModel()`（Replace 相当）
+- テキスト系（.csv/.tsv/.txt）：`FileReader.readAsText()` → 既存 `parseInput()` 流用
+- Excel（.xlsx/.xls）：SheetJS（xlsx ライブラリ）で読み込み → `normalizeTable()` 経由
+- Selection は clear（PR-12 と同方針）
+
+## Excel 実装
+
+```ts
+import * as XLSX from 'xlsx'
+
+const workbook = XLSX.read(arrayBuffer)
+const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+// → string[][] として normalizeTable() に渡す
+```
 
 ---
 
-## UI
+# 11.2 MergePanel を Source Manager へ変更
 
-Header：
+## 方針
+
+旧 MergePanel（貼り付け → Stack）を廃止し、**Upload 中心の Source Manager** に変更する。
+
+手入力 textarea / source name 入力 は廃止。
+
+## 新 UI
 
 ```txt
-Create Table
+┌────────────────────────────────────┐
+│ Merge Sources                  [×] │
+├────────────────────────────────────┤
+│ [Upload Source File]               │
+│ CSV / TSV / XLSX / TXT             │
+├────────────────────────────────────┤
+│ Source Stack                       │
+│─────────────────────────────────── │
+│ 📄 benchmark.csv (4×12)            │
+│ [↓ Append Rows] [→ Append Cols]    │
+│ [Replace] [✕]                      │
+│─────────────────────────────────── │
+│ 📄 results.xlsx (6×20)             │
+│ [↓ Append Rows] [→ Append Cols]    │
+│ [Replace] [✕]                      │
+└────────────────────────────────────┘
 ```
 
-ボタン。
+## 仕様
+
+- ファイル名を source name に自動利用
+- 手入力 name UI は不要
+- Upload → 自動 parse → Source Stack に追加
+- Merge 操作（Append / Replace）は PR-12 実装を維持
 
 ---
 
-### Dialog
+# 11.3 Clipboard Optimization（Excel / PowerPoint）
 
-入力：
+## Paste 時の優先順位
 
-```txt
-Rows
-Columns
+1. HTML Table（`text/html` MIME）
+2. TSV（`text/plain` にタブ含む）
+3. Plain text（既存 detect 流用）
+
+## 実装
+
+```ts
+textarea.onPaste = (e) => {
+  const html = e.clipboardData?.getData('text/html')
+  if (html) {
+    const rows = parseHTMLTable(html)
+    if (rows) {
+      e.preventDefault()
+      setText(rows.map(r => r.join('\t')).join('\n'))
+      return
+    }
+  }
+  // fallthrough: default paste → existing detect/parse pipeline
+}
 ```
 
-。
+## 対象
 
-例：
-
-```txt
-4 rows
-5 cols
-```
-
-。
+- Excel コピー（HTML table が clipboard に含まれる）
+- PowerPoint 表コピー
+- Google Sheets コピー
+- LLM Markdown テーブル出力（`| col | col |` 形式）→ HTML 変換後にパース
 
 ---
 
-### 出力
+# 11.4 LLM Markdown Table Parser
 
-空テーブル：
+対応形式：
 
-```txt
-editable table
+```md
+| Method | Accuracy |
+|--------|----------|
+| GPT    | 0.92     |
 ```
 
-生成。
+`parseHTMLTable` が失敗した場合のフォールバックとして実装。
 
-そのまま編集可能。
+または detect に 'markdown-table' を追加。
 
 ---
 
-### 初期 header
+# 11.5 Manual Table Creation Mode（実装済み）
 
-デフォルト：
-
-```txt
-Column 1
-Column 2
-...
-```
-
-。
+Create Table ボタン（PR-10 で実装済み）。仕様変更なし。
 
 ---
 
@@ -2244,31 +2123,23 @@ preset で十分。
 
 以下が可能：
 
-### Excel paste
+### File Upload（主テーブル）
 
-正常。
+.csv / .tsv / .txt / .xlsx / .xls を Upload → parse → Preview に反映。
 
-### PowerPoint paste
+### MergePanel Source Manager
 
-正常。
+Upload → Source Stack → Append/Replace が動作。
 
-### markdown table parse
+### Clipboard Optimization
 
-正常。
+Excel / Google Sheets コピー時に HTML Table 優先パース。
 
-### manual create
+### Markdown Table Parse
 
-正常。
-
-### notes
-
-正常。
+`| col |` 形式を parse 可能。
 
 ### preview sync
-
-正常。
-
-### package auto detect
 
 正常。
 
@@ -2295,7 +2166,7 @@ PR-12 Multi-source Merge
 ↓
 PR-13 Booktabs正式対応
 ↓
-PR-14 Paste最適化 + Notes
+PR-14 File Upload + Source Manager + Clipboard Optimization
 ```
 
 禁止：

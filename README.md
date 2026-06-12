@@ -379,6 +379,16 @@ test-data/                         # Merge テスト用サンプルデータ
 
 ---
 
+## Version History
+
+| Version | Focus | 主な追加機能 |
+|---|---|---|
+| v1 | 基本変換パイプライン | プロジェクト初期セットアップ / フォーマット自動検出（TSV・CSV・Classification Report・Log）/ Normalize / HTML プレビュー / LaTeX ジェネレーター（booktabs 対応）/ 出力設定（小数点・欠損値・罫線・環境）|
+| v2 | 編集・統合・注釈 | Edit モード（インライン編集・行列追加削除・途中挿入）/ 選択＆スタイル編集（太字・斜体・下線・背景色・揃え）/ 列の表示/非表示 / XLSX 対応 / Merge（行追加・列追加・置換）/ Caption・Label / 範囲選択（矩形・行列一括）/ 注釈（`\tnote` / `\footnotemark`・自動採番）|
+| v3 | 注釈改善・改行・複数表 | 注釈削除時の全セル markers 連動クリーンアップ / セルレベル detach（⊘ ボタン）/ セル内改行（Shift+Enter → `\makecell`）/ Merge UI 再設計（per-source direction・Apply 複数回・Replace・🗑 クリア）/ 複数表タブバー（追加・削除・切り替え）/ 全表 LaTeX エクスポート |
+
+---
+
 ## Roadmap
 
 - [ ] multirow / multicolumn 対応

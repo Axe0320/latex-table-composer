@@ -48,6 +48,8 @@ type EditHandlers = {
   onAddNote: () => void
   onUpdateNote: (id: string, patch: Partial<TableNote>) => void
   onRemoveNote: (id: string) => void
+  onDetachNoteFromCells: (noteId: string) => void
+  canDetachNote: (note: TableNote) => boolean
   onChangeNoteStyle: (style: NoteStyle) => void
   onChangeNoteNumbering: (numbering: NoteNumbering) => void
 }
@@ -90,6 +92,8 @@ export function PreviewPanel({
   onAddNote,
   onUpdateNote,
   onRemoveNote,
+  onDetachNoteFromCells,
+  canDetachNote,
   onChangeNoteStyle,
   onChangeNoteNumbering,
   onAddRowAbove,
@@ -453,6 +457,8 @@ export function PreviewPanel({
             onAddNote={onAddNote}
             onUpdateNote={onUpdateNote}
             onRemoveNote={onRemoveNote}
+            onDetachNoteFromCells={onDetachNoteFromCells}
+            canDetachNote={canDetachNote}
             onChangeNoteStyle={onChangeNoteStyle}
             onChangeNoteNumbering={onChangeNoteNumbering}
           />
@@ -660,6 +666,27 @@ function DataRow({
                 onCellSelect(cell.id, modelRowIdx, modelColIdx, true)
               }
             }}
+            onKeyDown={
+              isEditable
+                ? (e) => {
+                    if (e.key === 'Enter' && e.shiftKey) {
+                      e.preventDefault()
+                      document.execCommand('insertText', false, '\n')
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault()
+                    }
+                  }
+                : undefined
+            }
+            onPaste={
+              isEditable
+                ? (e) => {
+                    e.preventDefault()
+                    const text = e.clipboardData.getData('text/plain')
+                    document.execCommand('insertText', false, text)
+                  }
+                : undefined
+            }
             onBlur={
               isEditable
                 ? (e) => {
@@ -679,7 +706,7 @@ function DataRow({
               borderTop,
               borderBottom,
               color: 'var(--text)',
-              whiteSpace: 'nowrap',
+              whiteSpace: cell.value.includes('\n') ? 'pre-wrap' : 'nowrap',
               outline: isSelected ? '2px solid var(--accent)' : 'none',
               outlineOffset: '-2px',
               cursor: isEditable ? 'text' : 'default',
@@ -698,10 +725,14 @@ function DataRow({
                 : undefined
             }
           >
-            {/* Preview mode: show value + note superscripts */}
+            {/* Preview mode: show value + note superscripts; \n → <br> */}
             {isEditable ? displayValue : (
               <>
-                {displayValue}
+                {displayValue.includes('\n')
+                  ? displayValue.split('\n').flatMap((line, i, arr) =>
+                      i < arr.length - 1 ? [line, <br key={i} />] : [line]
+                    )
+                  : displayValue}
                 {(cell.noteMarkers ?? []).map(m => (
                   <sup key={m} style={{ fontSize: '0.65em', color: 'var(--accent)', marginLeft: '1px', userSelect: 'none' }}>
                     {m}
@@ -864,7 +895,8 @@ function PanelHeader({
 function NotesManager({
   notes, noteStyle, noteNumbering, viewMode,
   showNoteTriangle, onToggleTriangle,
-  onAddNote, onUpdateNote, onRemoveNote, onChangeNoteStyle, onChangeNoteNumbering,
+  onAddNote, onUpdateNote, onRemoveNote, onDetachNoteFromCells, canDetachNote,
+  onChangeNoteStyle, onChangeNoteNumbering,
 }: {
   notes: TableNote[]
   noteStyle: NoteStyle
@@ -875,6 +907,8 @@ function NotesManager({
   onAddNote: () => void
   onUpdateNote: (id: string, patch: Partial<TableNote>) => void
   onRemoveNote: (id: string) => void
+  onDetachNoteFromCells: (noteId: string) => void
+  canDetachNote: (note: TableNote) => boolean
   onChangeNoteStyle: (s: NoteStyle) => void
   onChangeNoteNumbering: (n: NoteNumbering) => void
 }) {
@@ -952,6 +986,20 @@ function NotesManager({
                 background: '#FAFAFA', color: 'var(--text)', outline: 'none' }} />
           ) : (
             <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-sub)' }}>{note.text}</span>
+          )}
+          {/* Detach from selected cells */}
+          {viewMode === 'edit' && (
+            <button
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => onDetachNoteFromCells(note.id)}
+              disabled={!canDetachNote(note)}
+              title="選択中のセルからマーカーを外す（注釈は残す）"
+              style={{
+                padding: '1px 6px', fontSize: '0.7rem', borderRadius: '4px', cursor: canDetachNote(note) ? 'pointer' : 'default',
+                border: '1px solid var(--border)', background: 'var(--bg)',
+                color: canDetachNote(note) ? 'var(--text-sub)' : 'var(--text-light)',
+                opacity: canDetachNote(note) ? 1 : 0.4,
+              }}>⊘</button>
           )}
           {/* Remove */}
           {viewMode === 'edit' && (

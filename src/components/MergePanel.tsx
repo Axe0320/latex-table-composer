@@ -11,20 +11,24 @@ type Props = {
   variant?: 'default' | 'inline'
   sources: TableSource[]
   onAddSourceFiles: (files: File[]) => Promise<void>
-  onAppendRows: (source: TableSource) => void
-  onAppendColumns: (source: TableSource) => void
+  onApplyMerge: () => void
   onReplaceWith: (source: TableSource) => void
   onRemoveSource: (id: string) => void
+  onReorderSources: (newOrder: TableSource[]) => void
+  onSetSourceDirection: (id: string, direction: 'rows' | 'columns') => void
+  onResetTable: () => void
 }
 
 export function MergePanel({
   variant = 'default',
   sources,
   onAddSourceFiles,
-  onAppendRows,
-  onAppendColumns,
+  onApplyMerge,
   onReplaceWith,
   onRemoveSource,
+  onReorderSources,
+  onSetSourceDirection,
+  onResetTable,
 }: Props) {
   const isInline = variant === 'inline'
   const [isDragging, setIsDragging] = useState(false)
@@ -39,97 +43,149 @@ export function MergePanel({
     setIsLoading(false)
   }
 
-  function onDragOver(e: React.DragEvent) {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  function onDragLeave(e: React.DragEvent) {
-    e.preventDefault()
-    setIsDragging(false)
-  }
-
+  function onDragOver(e: React.DragEvent) { e.preventDefault(); setIsDragging(true) }
+  function onDragLeave(e: React.DragEvent) { e.preventDefault(); setIsDragging(false) }
   async function onDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setIsDragging(false)
+    e.preventDefault(); setIsDragging(false)
     await handleFiles(Array.from(e.dataTransfer.files))
   }
-
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     await handleFiles(Array.from(e.target.files ?? []))
     e.target.value = ''
   }
 
+  function moveSource(index: number, delta: -1 | 1) {
+    const next = [...sources]
+    const target = index + delta
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target]!, next[index]!]
+    onReorderSources(next)
+  }
+
   const content = (
     <>
-      {/* Drop zone */}
+      {/* Source list */}
+      {sources.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', marginBottom: '0.75rem' }}>
+          {sources.map((source, idx) => {
+            const colCount = source.model.rows[0]?.cells.length ?? 0
+            const rowCount = source.model.rows.filter(r => r.rowType !== 'header').length
+            return (
+              <div key={source.id} style={{
+                border: '1px solid var(--border)', borderRadius: 'var(--rs)',
+                padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center',
+                gap: '0.5rem', background: 'var(--bg)',
+              }}>
+                {/* Reorder buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 }}>
+                  <OrderBtn onClick={() => moveSource(idx, -1)} disabled={idx === 0} title="上へ">▲</OrderBtn>
+                  <OrderBtn onClick={() => moveSource(idx, 1)} disabled={idx === sources.length - 1} title="下へ">▼</OrderBtn>
+                </div>
+
+                {/* File info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p className="text-sm font-semibold" style={{
+                    color: 'var(--text)', margin: 0,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    📄 {source.name}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--text-light)', margin: 0 }}>
+                    {colCount} 列 × {rowCount} 行 · {source.sourceType}
+                  </p>
+                </div>
+
+                {/* Per-source direction toggle */}
+                <div style={{
+                  display: 'flex', gap: '2px', padding: '2px',
+                  background: 'var(--card)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--rs)', flexShrink: 0,
+                }}>
+                  {(['rows', 'columns'] as const).map(d => (
+                    <button
+                      key={d}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => onSetSourceDirection(source.id, d)}
+                      title={d === 'rows' ? '行として追加' : '列として追加'}
+                      style={{
+                        padding: '2px 7px', fontSize: '0.7rem', fontWeight: 600,
+                        border: 'none', borderRadius: 'calc(var(--rs) - 2px)',
+                        cursor: 'pointer', transition: 'all .12s', whiteSpace: 'nowrap',
+                        background: source.direction === d ? 'var(--accent-light)' : 'transparent',
+                        color: source.direction === d ? 'var(--accent)' : 'var(--text-sub)',
+                      }}
+                    >
+                      {d === 'rows' ? '↓行' : '→列'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Replace (per-source) + Remove */}
+                <div style={{ display: 'flex', gap: '0.25rem', flexShrink: 0 }}>
+                  <ABtn title="このソースで主テーブルを置き換え" warn onClick={() => onReplaceWith(source)}>
+                    Replace
+                  </ABtn>
+                  <ABtn title="リストから削除" danger onClick={() => onRemoveSource(source.id)}>
+                    ✕
+                  </ABtn>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Drop zone / Add button */}
       <div
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
+        onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
         onClick={() => fileInputRef.current?.click()}
         style={{
           border: `1.5px dashed ${isDragging ? 'var(--accent)' : 'var(--border)'}`,
           borderRadius: 'var(--rs)',
           background: isDragging ? 'var(--accent-light)' : 'var(--bg)',
-          padding: '1.25rem',
+          padding: '0.875rem',
           textAlign: 'center',
           cursor: 'pointer',
           transition: 'all .15s',
-          marginBottom: sources.length > 0 ? '1rem' : 0,
         }}
       >
-        <p className="text-sm font-semibold mb-1"
-          style={{ color: isDragging ? 'var(--accent)' : 'var(--text-sub)' }}>
+        <p className="text-sm font-semibold"
+          style={{ color: isDragging ? 'var(--accent)' : 'var(--text-sub)', margin: '0 0 0.375rem' }}>
           {isLoading ? '読み込み中...' : isDragging ? 'ここにドロップ' : 'ここにドロップ、または'}
         </p>
         {!isLoading && !isDragging && (
           <button
             className="btn-secondary text-sm"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); fileInputRef.current?.click() }}
           >
-            📂 Upload Source File
+            📂 ソースファイルを追加
           </button>
         )}
-        <p className="text-xs mt-2" style={{ color: 'var(--text-light)' }}>
-          CSV / TSV / XLSX / TXT（複数ファイル対応）
+        <p className="text-xs" style={{ color: 'var(--text-light)', margin: '0.375rem 0 0' }}>
+          CSV / TSV / XLSX / TXT（複数対応）
         </p>
-        <input
-          ref={fileInputRef}
-          type="file"
-          hidden
-          multiple
-          accept={ACCEPTED}
-          onChange={onFileChange}
-        />
+        <input ref={fileInputRef} type="file" hidden multiple accept={ACCEPTED} onChange={onFileChange} />
       </div>
 
-      {/* Source stack */}
-      {sources.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {sources.map((source) => {
-            const colCount = source.model.rows[0]?.cells.length ?? 0
-            const rowCount = source.model.rows.filter(r => r.rowType !== 'header').length
-            return (
-              <SourceCard
-                key={source.id}
-                source={source}
-                colCount={colCount}
-                rowCount={rowCount}
-                onAppendRows={() => onAppendRows(source)}
-                onAppendColumns={() => onAppendColumns(source)}
-                onReplaceWith={() => onReplaceWith(source)}
-                onRemove={() => onRemoveSource(source.id)}
-              />
-            )
-          })}
-        </div>
-      )}
+      {/* Bottom actions */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+        <button
+          className="btn-primary text-sm"
+          style={{ flex: 1 }}
+          disabled={sources.length === 0}
+          onMouseDown={e => e.preventDefault()}
+          onClick={onApplyMerge}
+        >
+          Apply →
+        </button>
+        <ABtn title="現在のテーブルを空にする" warn onClick={onResetTable}>
+          🗑 クリア
+        </ABtn>
+      </div>
     </>
   )
 
-  // inline variant: no outer card, no header, reduced margins
   if (isInline) return <div>{content}</div>
 
   return (
@@ -138,7 +194,6 @@ export function MergePanel({
       borderRadius: 'var(--r)', boxShadow: 'var(--shadow-md)',
       padding: '1.25rem 1.5rem', marginBottom: '1.25rem',
     }}>
-      {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <span className="flex items-center justify-center text-xs font-extrabold"
           style={{ width: '1.375rem', height: '1.375rem', borderRadius: '50%',
@@ -155,61 +210,52 @@ export function MergePanel({
   )
 }
 
-type CardProps = {
-  source: TableSource
-  colCount: number
-  rowCount: number
-  onAppendRows: () => void
-  onAppendColumns: () => void
-  onReplaceWith: () => void
-  onRemove: () => void
-}
-
-function SourceCard({ source, colCount, rowCount, onAppendRows, onAppendColumns, onReplaceWith, onRemove }: CardProps) {
+function OrderBtn({ onClick, disabled, title, children }: {
+  onClick: () => void; disabled: boolean; title: string; children: React.ReactNode
+}) {
   return (
-    <div style={{
-      border: '1px solid var(--border)', borderRadius: 'var(--rs)',
-      padding: '0.625rem 0.875rem', display: 'flex', alignItems: 'center',
-      gap: '0.75rem', flexWrap: 'wrap', background: 'var(--bg)',
-    }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p className="text-sm font-semibold" style={{ color: 'var(--text)', margin: 0,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          📄 {source.name}
-        </p>
-        <p className="text-xs" style={{ color: 'var(--text-light)', margin: 0 }}>
-          {colCount} 列 × {rowCount} 行 · {source.sourceType}
-        </p>
-      </div>
-      <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0, flexWrap: 'wrap' }}>
-        <ABtn title="行を末尾に追加" onClick={onAppendRows}>↓ 行追加</ABtn>
-        <ABtn title="列を右端に追加" onClick={onAppendColumns}>→ 列追加</ABtn>
-        <ABtn title="主テーブルを置き換え" onClick={onReplaceWith} warn>Replace</ABtn>
-        <ABtn title="スタックから削除" onClick={onRemove} danger>✕</ABtn>
-      </div>
-    </div>
+    <button
+      onMouseDown={e => e.preventDefault()}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={{
+        width: '20px', height: '16px', padding: 0, fontSize: '0.55rem', lineHeight: 1,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        border: '1px solid var(--border)', borderRadius: '3px',
+        background: 'var(--card)', color: disabled ? 'var(--text-light)' : 'var(--text-sub)',
+        cursor: disabled ? 'default' : 'pointer', transition: 'all .1s',
+        opacity: disabled ? 0.4 : 1,
+      }}
+      onMouseEnter={e => { if (!disabled) { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' } }}
+      onMouseLeave={e => { if (!disabled) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-sub)' } }}
+    >
+      {children}
+    </button>
   )
 }
 
-function ABtn({ title, warn = false, danger = false, children, onClick }: {
-  title?: string; warn?: boolean; danger?: boolean
+function ABtn({ title, warn = false, danger = false, disabled = false, children, onClick }: {
+  title?: string; warn?: boolean; danger?: boolean; disabled?: boolean
   children: React.ReactNode; onClick: () => void
 }) {
-  const border = danger ? '#FECACA' : warn ? '#FDE68A' : 'var(--border)'
-  const bg = danger ? '#FEF2F2' : warn ? '#FFFBEB' : 'var(--card)'
-  const text = danger ? '#EF4444' : warn ? '#D97706' : 'var(--text-sub)'
+  const border = disabled ? 'var(--border)' : danger ? '#FECACA' : warn ? '#FDE68A' : 'var(--border)'
+  const bg = disabled ? 'var(--bg)' : danger ? '#FEF2F2' : warn ? '#FFFBEB' : 'var(--card)'
+  const text = disabled ? 'var(--text-light)' : danger ? '#EF4444' : warn ? '#D97706' : 'var(--text-sub)'
   const hBorder = danger ? '#EF4444' : warn ? '#D97706' : 'var(--accent)'
   const hBg = danger ? '#FEE2E2' : warn ? '#FEF3C7' : 'var(--accent-light)'
   const hText = danger ? '#EF4444' : warn ? '#D97706' : 'var(--accent)'
 
   return (
-    <button title={title} onClick={onClick}
+    <button title={title} onClick={disabled ? undefined : onClick} disabled={disabled}
       style={{ height: '26px', padding: '0 0.5rem', fontSize: '0.75rem', fontWeight: 600,
         display: 'flex', alignItems: 'center', border: `1.5px solid ${border}`,
-        borderRadius: 'var(--rx)', background: bg, color: text, cursor: 'pointer',
+        borderRadius: 'var(--rx)', background: bg, color: text,
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
         whiteSpace: 'nowrap', transition: 'all .12s' }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = hBorder; e.currentTarget.style.color = hText; e.currentTarget.style.background = hBg }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = border; e.currentTarget.style.color = text; e.currentTarget.style.background = bg }}
+      onMouseEnter={e => { if (!disabled) { e.currentTarget.style.borderColor = hBorder; e.currentTarget.style.color = hText; e.currentTarget.style.background = hBg } }}
+      onMouseLeave={e => { if (!disabled) { e.currentTarget.style.borderColor = border; e.currentTarget.style.color = text; e.currentTarget.style.background = bg } }}
     >
       {children}
     </button>

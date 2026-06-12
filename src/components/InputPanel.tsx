@@ -23,10 +23,12 @@ export type InputPanelProps = {
   onCreateTable: (rows: number, cols: number) => void
   sources: TableSource[]
   onAddSourceFiles: (files: File[]) => Promise<void>
-  onAppendRows: (source: TableSource) => void
-  onAppendColumns: (source: TableSource) => void
+  onApplyMerge: () => void
   onReplaceWith: (source: TableSource) => void
   onRemoveSource: (id: string) => void
+  onReorderSources: (newOrder: TableSource[]) => void
+  onSetSourceDirection: (id: string, direction: 'rows' | 'columns') => void
+  onResetTable: () => void
 }
 
 export function InputPanel(props: InputPanelProps) {
@@ -55,10 +57,12 @@ export function InputPanel(props: InputPanelProps) {
           variant="inline"
           sources={props.sources}
           onAddSourceFiles={props.onAddSourceFiles}
-          onAppendRows={props.onAppendRows}
-          onAppendColumns={props.onAppendColumns}
+          onApplyMerge={props.onApplyMerge}
           onReplaceWith={props.onReplaceWith}
           onRemoveSource={props.onRemoveSource}
+          onReorderSources={props.onReorderSources}
+          onSetSourceDirection={props.onSetSourceDirection}
+          onResetTable={props.onResetTable}
         />
       )}
     </div>

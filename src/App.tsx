@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { Toast } from './components/shared/Toast'
 import type { TableModel, BorderStyle } from './lib/table/types'
 import { parseInput } from './lib/table/parser'
 import { PreviewPanel } from './components/PreviewPanel'
@@ -37,6 +38,7 @@ function makeId(): string {
 }
 
 const DUMMY_MODEL: TableModel = {
+  id: 'dummy-initial',
   title: '',
   label: '',
   environment: 'table*',
@@ -90,7 +92,42 @@ const DUMMY_MODEL: TableModel = {
 function App() {
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<'input' | 'preview' | 'latex'>('input')
-  const [model, setModel] = useState<TableModel>(DUMMY_MODEL)
+
+  // 複数表管理
+  const [tables, setTables] = useState<TableModel[]>([DUMMY_MODEL])
+  const [activeTableId, setActiveTableId] = useState<string>(DUMMY_MODEL.id)
+
+  const model = useMemo(
+    () => tables.find(t => t.id === activeTableId) ?? tables[0]!,
+    [tables, activeTableId]
+  )
+
+  function setModel(updater: (prev: TableModel) => TableModel) {
+    isDirtyRef.current = true
+    setTables(prev => prev.map(t => {
+      if (t.id !== activeTableId) return t
+      const updated = updater(t)
+      // updater が別の id を返しても activeTableId との一致を壊さないよう id は常に保持
+      return updated.id === t.id ? updated : { ...updated, id: t.id }
+    }))
+  }
+
+  function handleAddTable() {
+    const newTable = createEmptyTable()
+    setTables(prev => [...prev, newTable])
+    setActiveTableId(newTable.id)
+  }
+
+  function handleDeleteTable(id: string) {
+    if (tables.length <= 1) return
+    const idx = tables.findIndex(t => t.id === id)
+    const nextTable = tables[idx === 0 ? 1 : idx - 1]!
+    setTables(prev => prev.filter(t => t.id !== id))
+    if (id === activeTableId) setActiveTableId(nextTable.id)
+  }
+
+  const isDirtyRef = useRef(false)
+
   const [options, setOptions] = useState<FormattingOptions>(DEFAULT_OPTIONS)
   const [exampleIdx, setExampleIdx] = useState(0)
   const [viewMode, setViewMode] = useState<'preview' | 'edit'>('preview')
@@ -109,7 +146,20 @@ function App() {
       hasAutoCollapsed.current = true
     }
   }, [viewMode, inputMode])
+
+  // Merge モードに切り替えたとき、まだ未編集なら空テーブルに自動クリア
+  useEffect(() => {
+    if (inputMode !== 'merge') return
+    if (isDirtyRef.current) return
+    setModel(() => createEmptyTable())
+    clearSelection()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputMode])
   const latex = useMemo(() => latexGenerator(model, options), [model, options])
+  const latexAll = useMemo(
+    () => tables.map(t => latexGenerator(t, options)).join('\n\n% --- table separator ---\n\n'),
+    [tables, options]
+  )
 
 
   const selectedCells = useMemo(
@@ -205,8 +255,54 @@ function App() {
     }))
   }
 
+  function findCellById(cellId: string) {
+    for (const row of model.rows) {
+      const cell = row.cells.find(c => c.id === cellId)
+      if (cell) return cell
+    }
+    return undefined
+  }
+
+  // invariant: note.marker must be unique across notes
   function handleRemoveNote(id: string) {
-    setModel(prev => ({ ...prev, notes: (prev.notes ?? []).filter(n => n.id !== id) }))
+    const note = model.notes?.find(n => n.id === id)
+    if (!note) return
+    setModel(prev => ({
+      ...prev,
+      notes: prev.notes?.filter(n => n.id !== id),
+      rows: prev.rows.map(row => ({
+        ...row,
+        cells: row.cells.map(cell => ({
+          ...cell,
+          noteMarkers: cell.noteMarkers?.filter(m => m !== note.marker),
+        })),
+      })),
+    }))
+  }
+
+  function canDetachNote(note: TableNote): boolean {
+    return [...selectedCellIds].some(cellId => {
+      const cell = findCellById(cellId)
+      return cell?.noteMarkers?.includes(note.marker) ?? false
+    })
+  }
+
+  function handleDetachNoteFromCells(noteId: string) {
+    const note = model.notes?.find(n => n.id === noteId)
+    if (!note) return
+    setModel(prev => ({
+      ...prev,
+      rows: prev.rows.map(row => ({
+        ...row,
+        cells: row.cells.map(cell => {
+          if (!selectedCellIds.has(cell.id)) return cell
+          return {
+            ...cell,
+            noteMarkers: cell.noteMarkers?.filter(m => m !== note.marker) ?? [],
+          }
+        }),
+      })),
+    }))
   }
 
   function handleAttachNote(marker: string) {
@@ -265,7 +361,9 @@ function App() {
     onCaptionChange: handleCaptionChange, onLabelChange: handleLabelChange,
     onAttachNote: handleAttachNote, onCreateAndAttachNote: handleCreateAndAttachNote,
     onAddNote: handleAddNote, onUpdateNote: handleUpdateNote,
-    onRemoveNote: handleRemoveNote, onChangeNoteStyle: handleChangeNoteStyle,
+    onRemoveNote: handleRemoveNote, onDetachNoteFromCells: handleDetachNoteFromCells,
+    canDetachNote,
+    onChangeNoteStyle: handleChangeNoteStyle,
     onChangeNoteNumbering: handleChangeNoteNumbering,
     onAddRowAbove: handleAddRowAbove, onAddRowBelow: handleAddRowBelow,
     onDeleteRow: handleDeleteRow, onAddColumnLeft: handleAddColumnLeft,
@@ -276,9 +374,13 @@ function App() {
   const inputPanelProps = {
     onParse: handleParse, onMainFileUpload: handleMainFileUpload,
     onCreateTable: handleCreateTable, sources,
-    onAddSourceFiles: handleAddSourceFiles, onAppendRows: handleAppendRows,
-    onAppendColumns: handleAppendColumns, onReplaceWith: handleReplaceWith,
+    onAddSourceFiles: handleAddSourceFiles,
+    onApplyMerge: handleApplyMerge,
+    onReplaceWith: handleReplaceWith,
     onRemoveSource: handleRemoveSource,
+    onReorderSources: handleReorderSources,
+    onSetSourceDirection: handleSetSourceDirection,
+    onResetTable: handleResetTable,
   } as const
 
   function handleCellSelect(cellId: string, rowIdx: number, colIdx: number, isShift: boolean) {
@@ -312,8 +414,8 @@ function App() {
     setAnchorCell(null)
   }
 
-  function handleParse(model: TableModel) {
-    setModel(model)
+  function handleParse(parsed: TableModel) {
+    setModel(() => parsed)
     clearSelection()
   }
 
@@ -331,8 +433,8 @@ function App() {
 
   // Load single file into main table (called from InputPanel Upload tab)
   async function handleMainFileUpload(file: File): Promise<void> {
-    const model = await parseFileToModel(file)
-    if (model) { setModel(model); clearSelection() }
+    const parsed = await parseFileToModel(file)
+    if (parsed) { setModel(() => parsed); clearSelection() }
   }
 
   // ── Merge handlers ─────────────────────────────────
@@ -346,27 +448,47 @@ function App() {
         name: file.name,
         sourceType: detectedType === 'unknown' ? 'manual' : detectedType,
         model,
+        direction: 'rows',
       }
       setSources((prev) => [...prev, source])
     }
   }
 
-  function handleAppendRows(source: TableSource) {
-    setModel((prev) => appendRows(prev, source.model))
-    clearSelection()  // Requirement 4: clear stale selection
+  function handleReorderSources(newOrder: TableSource[]) {
+    setSources(newOrder)
   }
 
-  function handleAppendColumns(source: TableSource) {
-    setModel((prev) => appendColumns(prev, source.model))
-    clearSelection()  // Requirement 4
+  // React state batching 対策: setModel を1回だけ呼び、全ソースを内部で累積
+  // 各ソースの direction に従って適用
+  function handleApplyMerge() {
+    setModel(prev => {
+      let result = prev
+      for (const source of sources) {
+        result = source.direction === 'columns'
+          ? appendColumns(result, source.model)
+          : appendRows(result, source.model)
+      }
+      return result
+    })
+    clearSelection()
   }
 
   function handleReplaceWith(source: TableSource) {
-    // Requirement 1: confirm before replace
     if (window.confirm('現在のテーブルを置き換えますか？')) {
-      setModel(replaceWith(source.model))
-      clearSelection()  // Requirement 4
+      setModel(() => replaceWith(source.model))
+      clearSelection()
     }
+  }
+
+  function handleResetTable() {
+    if (window.confirm('現在のテーブルをクリアしますか？')) {
+      setModel(() => createEmptyTable())
+      clearSelection()
+    }
+  }
+
+  function handleSetSourceDirection(id: string, direction: 'rows' | 'columns') {
+    setSources(prev => prev.map(s => s.id === id ? { ...s, direction } : s))
   }
 
   function handleRemoveSource(id: string) {
@@ -378,7 +500,7 @@ function App() {
     const parsed = parseInput(example.input)
     if (parsed) {
       parsed.title = example.description
-      setModel(parsed)
+      setModel(() => parsed)
     }
     setExampleIdx((i) => i + 1)
     clearSelection()
@@ -411,13 +533,16 @@ function App() {
     }))
   }
   function handleCreateTable(rows: number, cols: number) {
-    setModel(createEmptyTable(rows, cols))
+    setModel(() => createEmptyTable(rows, cols))
     setViewMode('edit')
     clearSelection()
   }
 
+  const [copyAllMode, setCopyAllMode] = useState(false)
+
   function handleCopyLatex() {
-    navigator.clipboard.writeText(latex).then(() => {
+    const text = copyAllMode ? latexAll : latex
+    navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -455,7 +580,87 @@ function App() {
 
       {/* Main */}
       <main className="mx-auto px-5 py-8" style={{ maxWidth: '960px' }}>
-        {/* Mobile tab switcher */}
+        {/* Table tab bar */}
+        <div style={{
+          background: 'var(--card)', border: '1px solid var(--border)',
+          borderRadius: 'var(--r)', boxShadow: 'var(--shadow-md)',
+          padding: '0.75rem 1rem', marginBottom: '1.25rem',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.625rem' }}>
+            <span style={{
+              fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em',
+              textTransform: 'uppercase', color: 'var(--text-light)',
+            }}>Tables</span>
+            <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+            <button
+              onClick={handleAddTable}
+              title="新しい表を追加"
+              style={{
+                padding: '3px 10px', fontSize: '0.78rem', fontWeight: 700,
+                border: '1.5px dashed var(--accent)', borderRadius: 'var(--rx)',
+                background: 'var(--accent-light)', color: 'var(--accent)',
+                cursor: 'pointer', transition: 'all .15s', whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = '#fff' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent-light)'; e.currentTarget.style.color = 'var(--accent)' }}
+            >
+              + 表を追加
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
+            {tables.map((t, i) => {
+              const isActive = t.id === activeTableId
+              return (
+                <div
+                  key={t.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '6px 10px 6px 14px',
+                    border: '1.5px solid',
+                    borderColor: isActive ? 'var(--accent)' : 'var(--border)',
+                    borderLeft: isActive ? '4px solid var(--accent)' : '1.5px solid var(--border)',
+                    borderRadius: 'var(--rs)',
+                    background: isActive ? 'var(--accent-light)' : 'var(--bg)',
+                    color: isActive ? 'var(--accent)' : 'var(--text-sub)',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: isActive ? 700 : 500,
+                    whiteSpace: 'nowrap',
+                    boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
+                    transition: 'all .15s',
+                    flexShrink: 0,
+                  }}
+                  onClick={() => setActiveTableId(t.id)}
+                  onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--card)' } }}
+                  onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)' } }}
+                >
+                  <span style={{ fontSize: '0.72rem', opacity: 0.6, marginRight: '1px' }}>#{i + 1}</span>
+                  <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {t.title || `表 ${i + 1}`}
+                  </span>
+                  <button
+                    onClick={e => { e.stopPropagation(); handleDeleteTable(t.id) }}
+                    disabled={tables.length <= 1}
+                    title="この表を削除"
+                    style={{
+                      width: '18px', height: '18px', marginLeft: '2px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: 'none', background: 'none',
+                      cursor: tables.length <= 1 ? 'default' : 'pointer',
+                      color: 'inherit', opacity: tables.length <= 1 ? 0.2 : 0.45,
+                      fontSize: '0.8rem', padding: 0, lineHeight: 1, borderRadius: '3px',
+                      transition: 'opacity .12s',
+                    }}
+                    onMouseEnter={e => { if (tables.length > 1) e.currentTarget.style.opacity = '0.9' }}
+                    onMouseLeave={e => { if (tables.length > 1) e.currentTarget.style.opacity = '0.45' }}
+                  >×</button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+      {/* Mobile tab switcher */}
         <div
           className="flex gap-1 mb-4 md:hidden"
           style={{ background: 'var(--border)', borderRadius: 'var(--rs)', padding: '3px' }}
@@ -525,7 +730,7 @@ function App() {
               <PreviewPanel {...previewProps} />
             </>
           )}
-          <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />
+          <LaTeXPanel latex={latex} latexAll={latexAll} copyAllMode={copyAllMode} onToggleCopyAll={() => setCopyAllMode(m => !m)} onCopy={handleCopyLatex} copied={copied} />
         </div>
 
         {/* Mobile: single panel by tab */}
@@ -539,19 +744,11 @@ function App() {
             </div>
           )}
           {activeTab === 'preview' && <PreviewPanel {...previewProps} />}
-          {activeTab === 'latex' && <LaTeXPanel latex={latex} onCopy={handleCopyLatex} copied={copied} />}
+          {activeTab === 'latex' && <LaTeXPanel latex={latex} latexAll={latexAll} copyAllMode={copyAllMode} onToggleCopyAll={() => setCopyAllMode(m => !m)} onCopy={handleCopyLatex} copied={copied} />}
         </div>
       </main>
 
-      {/* Toast */}
-      {copied && (
-        <div
-          className="fixed bottom-8 right-8 px-4 py-2.5 text-sm font-medium text-white rounded-md"
-          style={{ background: '#111827', boxShadow: 'var(--shadow-lg)' }}
-        >
-          Copied to clipboard!
-        </div>
-      )}
+      <Toast message="Copied to clipboard!" visible={copied} />
 
 
     </div>
@@ -615,27 +812,50 @@ function ModeSelector({ active, onChange }: { active: InputMode; onChange: (m: I
 
 function LaTeXPanel({
   latex,
+  latexAll,
+  copyAllMode,
+  onToggleCopyAll,
   onCopy,
   copied,
 }: {
   latex: string
+  latexAll: string
+  copyAllMode: boolean
+  onToggleCopyAll: () => void
   onCopy: () => void
   copied: boolean
 }) {
   return (
     <div className="card">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="flex items-center justify-center text-xs font-extrabold"
-          style={{ width: '1.375rem', height: '1.375rem', borderRadius: '50%',
-            background: 'var(--accent-light)', color: 'var(--accent)' }}>3</span>
-        <span className="text-xs font-bold uppercase tracking-widest"
-          style={{ color: 'var(--text-light)', letterSpacing: '0.1em' }}>LaTeX</span>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="flex items-center justify-center text-xs font-extrabold"
+            style={{ width: '1.375rem', height: '1.375rem', borderRadius: '50%',
+              background: 'var(--accent-light)', color: 'var(--accent)' }}>3</span>
+          <span className="text-xs font-bold uppercase tracking-widest"
+            style={{ color: 'var(--text-light)', letterSpacing: '0.1em' }}>LaTeX</span>
+        </div>
+        <div style={{ display: 'flex', gap: '2px', padding: '2px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rs)' }}>
+          {(['現在の表', 'すべての表'] as const).map((label, i) => (
+            <button
+              key={label}
+              onClick={() => { if ((i === 0) !== !copyAllMode) onToggleCopyAll() }}
+              style={{
+                padding: '2px 10px', fontSize: '0.72rem', fontWeight: 600,
+                border: 'none', borderRadius: 'calc(var(--rs) - 2px)', cursor: 'pointer', transition: 'all .15s',
+                background: (i === 0 ? !copyAllMode : copyAllMode) ? 'var(--card)' : 'transparent',
+                color: (i === 0 ? !copyAllMode : copyAllMode) ? 'var(--accent)' : 'var(--text-sub)',
+                boxShadow: (i === 0 ? !copyAllMode : copyAllMode) ? 'var(--shadow-sm)' : 'none',
+              }}
+            >{label}</button>
+          ))}
+        </div>
       </div>
       <textarea
         readOnly
         className="w-full font-mono text-sm resize-none"
         rows={8}
-        value={latex}
+        value={copyAllMode ? latexAll : latex}
         style={{
           background: '#F9F9FF',
           border: '1.5px solid var(--border)',
@@ -643,12 +863,12 @@ function LaTeXPanel({
           padding: '.75rem 1rem',
           outline: 'none',
           lineHeight: 1.75,
-          color: '#3730A3',
+          color: 'var(--accent-dark)',
           cursor: 'default',
         }}
       />
       <button className="btn-primary w-full mt-1 text-sm" onClick={onCopy}>
-        {copied ? 'Copied!' : 'Copy LaTeX'}
+        {copied ? 'Copied!' : (copyAllMode ? 'Copy All Tables' : 'Copy LaTeX')}
       </button>
     </div>
   )

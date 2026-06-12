@@ -32,7 +32,7 @@ export type TableRow = {
 }
 
 export type TableModel = {
-  id?: string
+  id: string
   title: string
   label: string
   environment: 'table' | 'table*'

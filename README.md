@@ -63,11 +63,33 @@ LaTeX で論文を書く学部生・大学院生・研究者。実験結果を�
 ### 編集機能（Edit モード）
 
 - **セル直接編集**（インライン）
+- **セル内改行**：Shift+Enter で改行。プレビューに反映、LaTeX では `\makecell{line1 \\ line2}` を自動出力
 - **行・列の追加・削除**（途中挿入対応）
 - **スタイル編集**：太字 / 斜体 / 下線 / 背景色 / 揃え
 - **範囲選択**：クリック / Shift+クリック（矩形）/ ドラッグ / 行・列まるごと
 - **列の表示/非表示**
 - **罫線スタイル**：行単位で `\hline` / `\midrule` を設定
+
+### 注釈（Annotation）
+
+- `\tnote{}` / `\footnotemark` 両対応
+- 自動採番：アルファベット（a, b, c…）/ 数字（1, 2, 3…）
+- `\begin{threeparttable}` を自動で挿入・管理
+- **注釈の削除**：注釈を削除すると全セルのマーカーも連動してクリーンアップ
+- **セルレベルの detach**（⊘ ボタン）：選択セルから特定マーカーだけ外す（注釈本体は残す）
+
+### Merge（ソース統合）
+
+- **ファイルごとに適用方向を選択**（↓行追加 / →列追加）
+- **Apply**：全ソースをリスト順に適用（何度でも押せる）
+- **Replace**：1つのソースでテーブル全体を置き換え（ソースはリストに残る）
+- **並び替え**：↑↓ ボタンでソースの適用順を変更
+- **テーブルをクリア**：🗑 ボタンでメインテーブルを空にしてやり直し
+
+### 複数表の一括管理
+
+- **タブバー**：複数の表を追加・削除・切り替え
+- **LaTeX エクスポート**：現在の表のみ / すべての表（テーブルセパレーター付き）を選択してコピー
 
 ### 出力設定
 
@@ -75,12 +97,6 @@ LaTeX で論文を書く学部生・大学院生・研究者。実験結果を�
 - **小数点桁数**：Auto（4桁）/ 0〜4桁
 - **欠損値**：`---` / `N/A` / `-` / 空白
 - **出力環境**：`table` / `table*`
-
-### 注釈
-
-- `\tnote{}` / `\footnotemark` 両対応
-- 自動採番：アルファベット（a, b, c…）/ 数字（1, 2, 3…）
-- `\begin{threeparttable}` を自動で挿入・管理
 
 ---
 
@@ -112,14 +128,14 @@ flowchart TD
     F[parse\nCSV / TSV / Excel\nClassification Report / Log]:::process
     G[normalize\n列数補正・数値判定\nセル trim]:::process
 
-    H[(TableModel\nSingle Source of Truth)]:::model
+    H[(TableModel[]\n複数表管理)]:::model
 
     I[formatter\n小数点丸め・欠損値]:::process
-    J[latexGenerator\nbooktabs / hline\ntnote / footnote]:::process
+    J[latexGenerator\nbooktabs / hline\ntnote / footnote\nmakecell]:::process
 
     K([👁 Preview\nリアルタイム表示\n論文風レンダリング]):::ui
     L([📝 Edit\nインライン編集\nスタイル・選択・注釈]):::ui
-    M([📄 LaTeX Output\nCopy LaTeX]):::output
+    M([📄 LaTeX Output\n現在の表 / 全表]):::output
 
     A --> E
     B --> E
@@ -160,6 +176,7 @@ flowchart LR
 ```mermaid
 classDiagram
     class TableModel {
+        +string id
         +string title
         +string label
         +string environment
@@ -233,6 +250,22 @@ Baseline & 0.8720 & 0.8640 & 0.8590 \\
 \end{table*}
 ```
 
+### セル内改行の出力例（`\makecell`）
+
+```latex
+% Required Packages:
+% \usepackage{booktabs}
+% \usepackage{makecell}
+
+\begin{tabular}{ll}
+\toprule
+\textbf{Model} & \textbf{Notes} \\
+\midrule
+Ours & \makecell{High accuracy \\ Low latency} \\
+\bottomrule
+\end{tabular}
+```
+
 ---
 
 ## 対応する自動検出フォーマット
@@ -276,7 +309,7 @@ flowchart TD
 | ビルド | Vite 5 |
 | スタイリング | Tailwind CSS 3 + Custom CSS Variables |
 | Excel 解析 | SheetJS（xlsx）※ dynamic import |
-| AI アシスタント | Claude Code (Anthropic) / Antigravity |
+| AI アシスタント | Claude Code (Anthropic) |
 | デプロイ | Vercel |
 
 ---
@@ -306,22 +339,33 @@ npm run build
 ```
 src/
 ├── components/
-│   ├── InputPanel.tsx         # 入力パネル（Paste/Upload/Create/Merge）
-│   ├── PreviewPanel.tsx       # プレビュー + 編集
-│   ├── TableEditorToolbar.tsx # 編集ツールバー
-│   ├── FormattingBar.tsx      # 出力設定
-│   └── MergePanel.tsx         # ソース統合
+│   ├── shared/
+│   │   └── Toast.tsx              # トースト通知（共有コンポーネント）
+│   ├── InputPanel.tsx             # 入力パネル（Paste/Upload/Create/Merge）
+│   ├── PreviewPanel.tsx           # プレビュー + 編集（セル内改行・注釈 UI）
+│   ├── TableEditorToolbar.tsx     # 編集ツールバー
+│   ├── FormattingBar.tsx          # 出力設定
+│   └── MergePanel.tsx             # ソース統合（per-source direction 対応）
 │
-├── lib/table/
-│   ├── types.ts               # TableModel / TableCell / TableNote 型定義
-│   ├── parser/                # 各フォーマットのパーサー
-│   ├── normalize/             # データ正規化
-│   ├── formatters/            # 出力フォーマット設定
-│   ├── generators/            # LaTeX 生成
-│   ├── editor/                # 編集操作（純粋関数）
-│   └── merge/                 # マージ操作
+├── lib/
+│   ├── theme.ts                   # CSS 変数名定数
+│   └── table/
+│       ├── types.ts               # TableModel / TableCell / TableNote 型定義
+│       ├── parser/                # 各フォーマットのパーサー
+│       ├── normalize/             # データ正規化
+│       ├── formatters/            # 出力フォーマット設定
+│       ├── generators/            # LaTeX 生成（makecell 対応）
+│       ├── editor/                # 編集操作（純粋関数）
+│       └── merge/                 # マージ操作
 │
-└── App.tsx                    # アプリケーションルート
+└── App.tsx                        # アプリケーションルート（複数表管理）
+
+test-data/                         # Merge テスト用サンプルデータ
+├── main_table.csv
+├── append_rows.csv
+├── append_columns.csv
+├── replace_target.csv
+└── README.md
 ```
 
 ---
@@ -340,7 +384,8 @@ src/
 - [ ] multirow / multicolumn 対応
 - [ ] drag & drop によるセル移動
 - [ ] ダークモード
-- [ ] 複数表の一括管理
+- [x] 複数表の一括管理
+- [x] セル内改行（`\makecell` 対応）
 - [ ] Citation ⇄ BibTeX Converter への統合
 
 ---
@@ -355,7 +400,7 @@ src/
 
 本リポジトリは、千葉工業大学「Web3・AI概論」第6回課題の要件である以下を満たすよう作成しています。
 
-1. AI 支援（Claude Code / Antigravity）を活用したプロトタイプ開発
+1. AI 支援（Claude Code）を活用したプロトタイプ開発
 2. 研究・学習上の実課題を解決するプロダクトの試作
 3. GitHub へのソースコード公開
 4. Vercel へのデプロイ（予定）

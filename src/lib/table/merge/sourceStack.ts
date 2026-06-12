@@ -12,4 +12,5 @@ export type TableSource = {
   name: string
   sourceType: SourceType
   model: TableModel
+  direction: 'rows' | 'columns'
 }

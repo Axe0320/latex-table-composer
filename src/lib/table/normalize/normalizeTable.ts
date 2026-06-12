@@ -34,6 +34,7 @@ export function normalizeTable(raw: string[][]): TableModel {
   const columns = rows[0]?.cells.map((c) => c.value) ?? []
 
   return {
+    id: crypto.randomUUID(),
     title: '',
     label: '',
     environment: 'table*',
@@ -79,6 +80,7 @@ function detectColAlignments(rows: string[][], colCount: number): ('left' | 'rig
 
 function emptyModel(): TableModel {
   return {
+    id: crypto.randomUUID(),
     title: '',
     label: '',
     environment: 'table*',

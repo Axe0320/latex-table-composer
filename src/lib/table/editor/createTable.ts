@@ -1,6 +1,6 @@
 import type { TableModel, TableRow, TableCell } from '../types'
 
-export function createEmptyTable(rowCount: number, colCount: number): TableModel {
+export function createEmptyTable(rowCount = 3, colCount = 4): TableModel {
   const headerCells: TableCell[] = Array.from({ length: colCount }, (_, i): TableCell => ({
     id: crypto.randomUUID(),
     value: `Column ${i + 1}`,
@@ -26,6 +26,7 @@ export function createEmptyTable(rowCount: number, colCount: number): TableModel
   }))
 
   return {
+    id: crypto.randomUUID(),
     title: '',
     label: '',
     environment: 'table*',

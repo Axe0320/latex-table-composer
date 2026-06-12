@@ -122,7 +122,19 @@ function detectRequiredPackages(model: TableModel, opts: FormattingOptions): str
   if (notes.length > 0 && noteStyle === 'tnote')
     pkgs.push('\\usepackage{threeparttable}')
 
+  // makecell — needed when any cell value contains a newline
+  if (model.rows.some(r => r.cells.some(c => c.value.includes('\n'))))
+    pkgs.push('\\usepackage{makecell}')
+
   return pkgs
+}
+
+// latexEscape is applied per-line to avoid double-escaping inside \makecell
+function wrapMakecell(raw: string): string {
+  const normalized = raw.replace(/\r\n/g, '\n')
+  if (!normalized.includes('\n')) return latexEscape(normalized)
+  const escapedLines = normalized.split('\n').map(line => latexEscape(line))
+  return `\\makecell{${escapedLines.join(' \\\\ ')}}`
 }
 
 function buildColSpec(model: TableModel): string {
@@ -146,7 +158,7 @@ function buildRow(
   const visibleCells = row.cells.filter(c => !c.hidden)
   const cells = visibleCells.map(cell => {
     const raw = row.rowType === 'header' ? cell.value : formatValue(cell.value, opts)
-    let value = latexEscape(raw)
+    let value = wrapMakecell(raw)
     if (cell.bold)            value = `\\textbf{${value}}`
     if (cell.italic)          value = `\\textit{${value}}`
     if (cell.underline)       value = `\\underline{${value}}`

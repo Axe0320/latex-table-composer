@@ -128,7 +128,7 @@ flowchart TD
     F[parse\nCSV / TSV / Excel\nClassification Report / Log]:::process
     G[normalize\n列数補正・数値判定\nセル trim]:::process
 
-    H[(TableModel[]\n複数表管理)]:::model
+    H[(TableModel\n複数表管理)]:::model
 
     I[formatter\n小数点丸め・欠損値]:::process
     J[latexGenerator\nbooktabs / hline\ntnote / footnote\nmakecell]:::process

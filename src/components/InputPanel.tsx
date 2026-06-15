@@ -68,8 +68,15 @@ export function InputPanel(props: InputPanelProps) {
       {/* Common footer: clear table — visible in all modes */}
       <div style={{ marginTop: '0.875rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
         <button
-          className="btn-secondary w-full"
-          style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
+          className="w-full"
+          style={{
+            fontSize: '0.875rem', padding: '0.5rem 1rem', fontWeight: 600,
+            border: '1.5px solid #FDE68A', borderRadius: 'var(--rs)',
+            background: '#FFFBEB', color: '#D97706',
+            cursor: 'pointer', transition: 'all .12s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#D97706'; e.currentTarget.style.background = '#FEF3C7' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#FDE68A'; e.currentTarget.style.background = '#FFFBEB' }}
           onClick={props.onResetTable}
         >
           テーブルをクリア

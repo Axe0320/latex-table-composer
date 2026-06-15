@@ -18,15 +18,22 @@ function freshCellIds(row: TableRow): TableRow {
 }
 
 // Append Rows: source data rows (rowType !== 'header') added to primary bottom.
-// Auto-pads column count to max. Uses rowType check — index-0 assumption forbidden.
+// If primary has no rows, use the full source (header + data) as the base.
 export function appendRows(primary: TableModel, source: TableModel): TableModel {
+  if (primary.rows.length === 0) {
+    return {
+      ...primary,
+      columns: source.columns,
+      rows: source.rows.map(freshCellIds),
+    }
+  }
+
   const primaryCols = primary.rows[0]?.cells.length ?? 0
   const sourceCols = source.rows[0]?.cells.length ?? 0
   const maxCols = Math.max(primaryCols, sourceCols)
 
   const paddedPrimary = primary.rows.map(r => padRowToColCount(r, maxCols))
 
-  // Requirement 2: exclude by rowType, never by index
   const sourceDataRows = source.rows
     .filter(r => r.rowType !== 'header')
     .map(r => freshCellIds(padRowToColCount(r, maxCols)))
@@ -38,9 +45,17 @@ export function appendRows(primary: TableModel, source: TableModel): TableModel 
 }
 
 // Append Columns: source columns appended to primary.
+// If primary has no rows, use the full source as the base.
 // Aligns by row type: header↔header, data↔data (by data-row index).
-// Requirement 3: use source header cells when available, else generate "Column N".
 export function appendColumns(primary: TableModel, source: TableModel): TableModel {
+  if (primary.rows.length === 0) {
+    return {
+      ...primary,
+      columns: source.columns,
+      rows: source.rows.map(freshCellIds),
+    }
+  }
+
   const primaryColCount = primary.rows[0]?.cells.length ?? 0
   const sourceColCount = source.rows[0]?.cells.length ?? 0
 

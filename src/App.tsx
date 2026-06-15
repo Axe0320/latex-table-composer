@@ -147,11 +147,11 @@ function App() {
     }
   }, [viewMode, inputMode])
 
-  // Merge モードに切り替えたとき、まだ未編集なら空テーブルに自動クリア
+  // Merge モードに切り替えたとき、まだ未編集なら行ゼロの空モデルに自動クリア
   useEffect(() => {
     if (inputMode !== 'merge') return
     if (isDirtyRef.current) return
-    setModel(() => createEmptyTable())
+    setModel(prev => ({ ...prev, columns: [], rows: [], notes: undefined }))
     clearSelection()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputMode])
@@ -482,7 +482,7 @@ function App() {
 
   function handleResetTable() {
     if (window.confirm('現在のテーブルをクリアしますか？')) {
-      setModel(() => createEmptyTable())
+      setModel(prev => ({ ...prev, columns: [], rows: [], notes: undefined }))
       clearSelection()
     }
   }

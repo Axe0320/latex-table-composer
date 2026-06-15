@@ -113,7 +113,7 @@ function App() {
   }
 
   function handleAddTable() {
-    const newTable = createEmptyTable()
+    const newTable: TableModel = { id: makeId(), title: '', label: '', environment: 'table*', columns: [], rows: [] }
     setTables(prev => [...prev, newTable])
     setActiveTableId(newTable.id)
   }

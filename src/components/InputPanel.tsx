@@ -62,9 +62,19 @@ export function InputPanel(props: InputPanelProps) {
           onRemoveSource={props.onRemoveSource}
           onReorderSources={props.onReorderSources}
           onSetSourceDirection={props.onSetSourceDirection}
-          onResetTable={props.onResetTable}
         />
       )}
+
+      {/* Common footer: clear table — visible in all modes */}
+      <div style={{ marginTop: '0.875rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+        <button
+          className="btn-secondary w-full"
+          style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
+          onClick={props.onResetTable}
+        >
+          テーブルをクリア
+        </button>
+      </div>
     </div>
   )
 }

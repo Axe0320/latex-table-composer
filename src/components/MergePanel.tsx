@@ -16,7 +16,6 @@ type Props = {
   onRemoveSource: (id: string) => void
   onReorderSources: (newOrder: TableSource[]) => void
   onSetSourceDirection: (id: string, direction: 'rows' | 'columns') => void
-  onResetTable: () => void
 }
 
 export function MergePanel({
@@ -28,7 +27,6 @@ export function MergePanel({
   onRemoveSource,
   onReorderSources,
   onSetSourceDirection,
-  onResetTable,
 }: Props) {
   const isInline = variant === 'inline'
   const [isDragging, setIsDragging] = useState(false)
@@ -169,19 +167,15 @@ export function MergePanel({
       </div>
 
       {/* Bottom actions */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+      <div style={{ marginTop: '0.75rem' }}>
         <button
-          className="btn-primary text-sm"
-          style={{ flex: 1 }}
+          className="btn-primary text-sm w-full"
           disabled={sources.length === 0}
           onMouseDown={e => e.preventDefault()}
           onClick={onApplyMerge}
         >
           Apply →
         </button>
-        <ABtn title="現在のテーブルを空にする" warn onClick={onResetTable}>
-          🗑 クリア
-        </ABtn>
       </div>
     </>
   )
